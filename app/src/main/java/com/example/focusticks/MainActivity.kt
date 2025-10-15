@@ -5,22 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.Divider
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Build
+import androidx.compose.material.icons.outlined.Chat
+import androidx.compose.material.icons.outlined.Leaderboard
+import androidx.compose.material.icons.outlined.Logout
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -34,8 +28,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.focusticks.ui.theme.FocuSticksTheme
-import androidx.compose.foundation.text.KeyboardOptions
-
+private sealed class Route(val name: String) {
+    data object Splash : Route("splash")
+    data object Login : Route("login")
+    data object Dashboard : Route("dashboard")
+    data object Profile : Route("profile")
+    data object Task : Route("task")
+    data object Leaderboard : Route("leaderboard")
+    data object Discussion : Route("discussion")
+}
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,28 +47,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-private sealed class Route(val name: String) {
-    data object Splash : Route("splash")
-    data object Login : Route("login")
-    data object SignUp : Route("signup")
-    data object ForgotStep1 : Route("forgot_step1")
-    data object ForgotStep2 : Route("forgot_step2")
-    data object Dashboard : Route("dashboard")
-
-    // Dashboard destinations
-    data object Profile : Route("profile")
-    data object Task : Route("task")
-    data object Leaderboard : Route("leaderboard")
-    data object Discussion : Route("discussion")
-}
-
 @Composable
 private fun AppRoot() {
     val nav = rememberNavController()
 
-    NavHost(navController = nav, startDestination = Route.Splash.name) {
-
+    NavHost(
+        navController = nav,
+        startDestination = Route.Splash.name
+    ) {
         composable(Route.Splash.name) {
             SplashScreen(onGetStarted = {
                 nav.navigate(Route.Login.name) {
@@ -83,48 +70,33 @@ private fun AppRoot() {
                         popUpTo(Route.Login.name) { inclusive = true }
                     }
                 },
-                onForgot = { nav.navigate(Route.ForgotStep1.name) },
-                onSignUp = { nav.navigate(Route.SignUp.name) }
+                onForgot = { /* TODO */ },
+                onSignUp = { /* TODO */ }
             )
         }
 
-        composable(Route.SignUp.name) {
-            SignUpScreen(
-                onConfirm = {
-                    nav.navigate(Route.Dashboard.name) {
-                        popUpTo(Route.SignUp.name) { inclusive = true }
-                    }
-                }
-            )
-        }
-
-        composable(Route.ForgotStep1.name) {
-            ForgotPasswordStep1Screen(onNext = { nav.navigate(Route.ForgotStep2.name) })
-        }
-
-        composable(Route.ForgotStep2.name) {
-            ForgotPasswordStep2Screen(
-                onConfirm = {
-                    nav.navigate(Route.Login.name) {
-                        popUpTo(Route.Login.name) { inclusive = true }
-                    }
-                }
-            )
-        }
-
-        // Dashboard + subpages
         composable(Route.Dashboard.name) { DashboardScreen(nav) }
-        composable(Route.Profile.name) { ProfileScreen(onLogout = {
-            nav.navigate(Route.Login.name) {
-                popUpTo(Route.Dashboard.name) { inclusive = true }
-            }
-        }) }
-        composable(Route.Task.name) { TaskScreen() }
-        composable(Route.Leaderboard.name) { LeaderboardScreen() }
-        composable(Route.Discussion.name) { DiscussionScreen() }
+        composable(Route.Profile.name) { ProfileScreen(nav) }
+        composable(Route.Task.name) { TaskScreen(nav) }
+        composable(Route.Leaderboard.name) { LeaderboardScreen(nav) }
+        composable(Route.Discussion.name) { DiscussionScreen(nav) }
     }
 }
-
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TopBarWithBack(title: String, onBack: () -> Unit) {
+    TopAppBar(
+        title = { Text(title) },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back"
+                )
+            }
+        }
+    )
+}
 @Composable
 private fun SplashScreen(onGetStarted: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
@@ -150,7 +122,10 @@ private fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text("FocuSticks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(24.dp))
 
@@ -159,7 +134,10 @@ private fun LoginScreen(
             onValueChange = { email = it },
             label = { Text("Email") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Next
+            ),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -172,14 +150,17 @@ private fun LoginScreen(
             singleLine = true,
             visualTransformation = if (showPw) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
-                IconButton(onClick = { showPw = !showPw }) {
-                    Icon(
-                        imageVector = if (showPw) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                        contentDescription = null
-                    )
-                }
+                Text(
+                    if (showPw) "Hide" else "Show",
+                    modifier = Modifier
+                        .clickable { showPw = !showPw }
+                        .padding(8.dp)
+                )
             },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Password,
+                imeAction = ImeAction.Done
+            ),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -201,136 +182,20 @@ private fun LoginScreen(
 }
 
 @Composable
-private fun SignUpScreen(onConfirm: () -> Unit) {
-    var mailId by remember { mutableStateOf("") }
-    var dob by remember { mutableStateOf("") }
-    var createPw by remember { mutableStateOf("") }
-    var confirmPw by remember { mutableStateOf("") }
-    var showPw1 by remember { mutableStateOf(false) }
-    var showPw2 by remember { mutableStateOf(false) }
-
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("FocuSticks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = mailId, onValueChange = { mailId = it },
-            label = { Text("Mail id") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = dob, onValueChange = { dob = it.take(10) },
-            label = { Text("Date of Birth (MM/DD/YYYY)") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = createPw, onValueChange = { createPw = it },
-            label = { Text("Create Password") }, singleLine = true,
-            visualTransformation = if (showPw1) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { showPw1 = !showPw1 }) {
-                    Icon(if (showPw1) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = confirmPw, onValueChange = { confirmPw = it },
-            label = { Text("Confirm Password") }, singleLine = true,
-            visualTransformation = if (showPw2) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { showPw2 = !showPw2 }) {
-                    Icon(if (showPw2) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) { Text("Confirm") }
-    }
-}
-
-@Composable
-private fun ForgotPasswordStep1Screen(onNext: () -> Unit) {
-    var mailId by remember { mutableStateOf("") }
-    var dob by remember { mutableStateOf("") } // MM/DD/YYYY
-
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("FocuSticks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(
-            value = mailId, onValueChange = { mailId = it },
-            label = { Text("Mail id") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = dob, onValueChange = { dob = it.take(10) },
-            label = { Text("Date of Birth (MM/DD/YYYY)") }, singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onNext, modifier = Modifier.fillMaxWidth()) { Text("Next") }
-    }
-}
-
-@Composable
-private fun ForgotPasswordStep2Screen(onConfirm: () -> Unit) {
-    var newPw by remember { mutableStateOf("") }
-    var confirmPw by remember { mutableStateOf("") }
-    var show1 by remember { mutableStateOf(false) }
-    var show2 by remember { mutableStateOf(false) }
-
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("FocuSticks", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(
-            value = newPw, onValueChange = { newPw = it },
-            label = { Text("Create New Password") }, singleLine = true,
-            visualTransformation = if (show1) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { show1 = !show1 }) {
-                    Icon(if (show1) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = confirmPw, onValueChange = { confirmPw = it },
-            label = { Text("Confirm Password") }, singleLine = true,
-            visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation(),
-            trailingIcon = {
-                IconButton(onClick = { show2 = !show2 }) {
-                    Icon(if (show2) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null)
-                }
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onConfirm, modifier = Modifier.fillMaxWidth()) { Text("Confirm") }
-    }
-}
-
-@Composable
 private fun DashboardScreen(nav: NavHostController) {
-    val items = listOf(
-        "Profile" to Route.Profile.name,
-        "Task" to Route.Task.name,
-        "Leaderboard" to Route.Leaderboard.name,
-        "Discussion" to Route.Discussion.name
+    val entries: List<Triple<String, String, @Composable () -> Unit>> = listOf(
+        Triple("Profile", Route.Profile.name) {
+            Icon(Icons.Outlined.AccountCircle, contentDescription = null)
+        },
+        Triple("Task", Route.Task.name) {
+            Icon(Icons.Outlined.Build, contentDescription = null)
+        },
+        Triple("Leaderboard", Route.Leaderboard.name) {
+            Icon(Icons.Outlined.Leaderboard, contentDescription = null)
+        },
+        Triple("Discussion", Route.Discussion.name) {
+            Icon(Icons.Outlined.Chat, contentDescription = null)
+        }
     )
 
     Column(Modifier.fillMaxSize().padding(24.dp)) {
@@ -338,61 +203,111 @@ private fun DashboardScreen(nav: NavHostController) {
         Spacer(Modifier.height(12.dp))
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
-                items.forEachIndexed { i, (label, dest) ->
+                entries.forEachIndexed { index, triple ->
+                    val (label, route, leading) = triple
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { nav.navigate(dest) }
-                            .padding(vertical = 14.dp),
+                            .clickable { nav.navigate(route) }
+                            .padding(horizontal = 12.dp, vertical = 16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        leading()
+                        Spacer(Modifier.width(12.dp))
                         Text(label, style = MaterialTheme.typography.titleMedium)
                     }
-                    if (i != items.lastIndex) Divider()
+                    if (index != entries.lastIndex) Divider()
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileScreen(onLogout: () -> Unit) {
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Profile", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(20.dp))
-        Text("Name: Dinesh Kanna")
-        Text("Email: dineshkanna1810@gmail.com")
-        Spacer(Modifier.height(20.dp))
-        Button(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Logout") }
+private fun ProfileScreen(nav: NavHostController) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Profile") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = {
+                            // TODO: add real sign-out if you wire auth
+                            nav.navigate(Route.Login.name) {
+                                popUpTo(Route.Dashboard.name) { inclusive = true }
+                                launchSingleTop = true
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Outlined.Logout, contentDescription = "Logout")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            Modifier
+                .padding(padding)
+                .padding(24.dp)
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ElevatedCard {
+                Box(
+                    modifier = Modifier.size(96.dp),
+                    contentAlignment = Alignment.Center
+                ) { Icon(Icons.Outlined.AccountCircle, contentDescription = null) }
+            }
+
+            Spacer(Modifier.height(24.dp))
+            LabeledValue("Name", "Dinesh Kanna")
+            LabeledValue("Student id", "U12345678")
+            LabeledValue("Email", "dineshkanna1810@gmail.com")
+            LabeledValue("Phone no", "555-123-4567")
+
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = { /* TODO: streaks */ }) { Text("Streaks") }
+        }
     }
 }
 
 @Composable
-private fun TaskScreen() {
-    var level by remember { mutableStateOf(1) }
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
-        Text("Task", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(10.dp))
-        Text("Level: $level", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(16.dp))
-        Button(onClick = { level++ }) { Text("Increment Level (demo)") }
+private fun TaskScreen(nav: NavHostController) {
+    Scaffold(topBar = { TopBarWithBack("Task") { nav.popBackStack() } }) { padding ->
+        Column(Modifier.padding(padding).padding(24.dp)) {
+            Text("Task Screen", style = MaterialTheme.typography.headlineSmall)
+        }
     }
 }
 
 @Composable
-private fun LeaderboardScreen() {
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
-        Text("Leaderboard", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Coming soon…")
+private fun LeaderboardScreen(nav: NavHostController) {
+    Scaffold(topBar = { TopBarWithBack("Leaderboard") { nav.popBackStack() } }) { padding ->
+        Column(Modifier.padding(padding).padding(24.dp)) {
+            Text("Leaderboard Screen", style = MaterialTheme.typography.headlineSmall)
+        }
     }
 }
 
 @Composable
-private fun DiscussionScreen() {
-    Column(Modifier.fillMaxSize().padding(24.dp)) {
-        Text("Discussion", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(8.dp))
-        Text("Coming soon…")
+private fun DiscussionScreen(nav: NavHostController) {
+    Scaffold(topBar = { TopBarWithBack("Discussion") { nav.popBackStack() } }) { padding ->
+        Column(Modifier.padding(padding).padding(24.dp)) {
+            Text("Discussion Screen", style = MaterialTheme.typography.headlineSmall)
+        }
+    }
+}
+@Composable
+private fun LabeledValue(label: String, value: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.titleMedium)
+        Divider(Modifier.padding(vertical = 8.dp))
     }
 }
