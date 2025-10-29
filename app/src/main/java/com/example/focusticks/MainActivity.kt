@@ -56,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -77,6 +78,7 @@ private sealed class Route(val name: String) {
     data object Leaderboard : Route("leaderboard")
     data object Task : Route("task")
     data object Profile : Route("profile")
+    data object Streaks : Route("streaks")
 }
 
 private data class AuthState(
@@ -137,6 +139,7 @@ private fun AppRoot(auth: AuthController) {
             composable(Route.Leaderboard.name) { LeaderboardScreen(nav) }
             composable(Route.Task.name) { TaskScreen(nav) }
             composable(Route.Profile.name) { ProfileScreen(nav, auth) }
+            composable(Route.Streaks.name) { StreaksScreen(nav) }
         }
     }
 }
@@ -551,8 +554,60 @@ private fun LeaderboardScreen(nav: NavHostController) {
 @Composable
 private fun DiscussionScreen(nav: NavHostController) {
     Scaffold(topBar = { SimpleTopBar(title = "Discussion", onBack = { nav.popBackStack() }) }) { padding ->
-        Box(Modifier.padding(padding).fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Discussion – coming soon")
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Text("Discussion", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(16.dp))
+            Text("Description", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            OutlinedCard {
+                Text(
+                    "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("Comments", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(8.dp))
+            OutlinedCard {
+                Column(Modifier.padding(12.dp)) {
+                    Text("dvbfgnfbvgdsb svn dsv")
+                    Spacer(Modifier.height(6.dp))
+                    Text("ndbsrfgvdbd")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StreaksScreen(nav: NavHostController) {
+    Scaffold(topBar = { SimpleTopBar(title = "Streaks", onBack = { nav.popBackStack() }) }) { padding ->
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Text("Streaks", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineLarge)
+            Spacer(Modifier.height(24.dp))
+            Text("Current Streak", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(4.dp))
+            Text("5 Points")
+            Spacer(Modifier.height(28.dp))
+            Text("Total tasks completed", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+            Spacer(Modifier.height(4.dp))
+            Text("10")
+            Spacer(Modifier.height(28.dp))
+            Text(
+                "View Task",
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable { nav.navigate(Route.Task.name) }
+            )
         }
     }
 }
@@ -601,7 +656,7 @@ private fun ProfileScreen(nav: NavHostController, auth: AuthController) {
             Divider()
             Spacer(Modifier.height(16.dp))
             OutlinedButton(
-                onClick = { scope.launch { snackbarHostState.showSnackbar("Streaks — coming soon") } },
+                onClick = { nav.navigate(Route.Streaks.name) },
                 modifier = Modifier.fillMaxWidth(0.5f).height(44.dp)
             ) { Text("Streaks") }
         }

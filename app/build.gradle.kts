@@ -36,7 +36,6 @@ android {
 
     buildFeatures { compose = true }
     composeOptions {
-        // Works with your chosen BOM 2024.09.02
         kotlinCompilerExtensionVersion = "1.5.14"
     }
 
