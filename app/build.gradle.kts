@@ -60,6 +60,9 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     implementation("androidx.compose.ui:ui-text")
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+
 
     val firebaseBom = platform("com.google.firebase:firebase-bom:33.5.1")
     implementation(firebaseBom)
