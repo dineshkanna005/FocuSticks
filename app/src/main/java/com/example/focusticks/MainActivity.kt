@@ -1,5 +1,6 @@
 package com.example.focusticks
 
+import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -45,7 +46,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -64,7 +64,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -79,26 +78,24 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.Data
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
 import com.example.focusticks.ui.screens.LoginScreen
 import com.example.focusticks.ui.theme.FocuSticksTheme
 import com.google.firebase.FirebaseApp
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 import java.text.ParseException
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
+import java.util.concurrent.TimeUnit
+import androidx.compose.runtime.LaunchedEffect
 
 private object DB {
     val auth = Firebase.auth
@@ -126,10 +123,30 @@ private fun parseDueMillis(dueStr: String): Long? {
             val sdf = SimpleDateFormat(p, Locale.US)
             sdf.isLenient = false
             return sdf.parse(dueStr)?.time
-        } catch (_: ParseException) {}
+        } catch (_: ParseException) {
+        }
     }
     return null
 }
+
+private fun difficultyScore(raw: String): Int {
+    return when (raw.trim().lowercase(Locale.US)) {
+        "hard" -> 3
+        "medium" -> 2
+        "easy" -> 1
+        else -> 0
+    }
+}
+
+data class TaskItem(
+    val id: String,
+    val title: String,
+    val due: String,
+    val difficulty: String,
+    val category: String,
+    val subject: String,
+    val completed: Boolean
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -137,7 +154,11 @@ class MainActivity : ComponentActivity() {
         FirebaseApp.initializeApp(this)
         requestNotifPermissionIfNeeded()
         createTaskChannel()
-        setContent { FocuSticksTheme { AppRoot() } }
+        setContent {
+            FocuSticksTheme {
+                AppRoot()
+            }
+        }
     }
 
     private fun requestNotifPermissionIfNeeded() {
@@ -162,6 +183,19 @@ class MainActivity : ComponentActivity() {
         val nav = rememberNavController()
         val backEntry by nav.currentBackStackEntryAsState()
         val currentRoute = backEntry?.destination?.route
+
+        LaunchedEffect(Unit) {
+            val openRoute = this@MainActivity.intent.getStringExtra("open_route")
+            if (openRoute == "task") {
+                nav.navigate(Route.Task.name) {
+                    popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                this@MainActivity.intent.removeExtra("open_route")
+            }
+        }
+
         Scaffold(
             bottomBar = { if (shouldShowBottomBar(currentRoute)) BottomBar(nav, currentRoute) }
         ) { padding ->
@@ -186,7 +220,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun shouldShowBottomBar(route: String?): Boolean =
-        route in setOf(Route.Dashboard.name, Route.Discussion.name, Route.Leaderboard.name, Route.Task.name, Route.Profile.name)
+        route in setOf(
+            Route.Dashboard.name,
+            Route.Discussion.name,
+            Route.Leaderboard.name,
+            Route.Task.name,
+            Route.Profile.name
+        )
 
     private data class BottomItem(val route: String, val label: String, val icon: @Composable () -> Unit)
 
@@ -287,9 +327,21 @@ class MainActivity : ComponentActivity() {
                     .padding(24.dp)
                     .fillMaxSize()
             ) {
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Mail id") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Mail id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = dob, onValueChange = { dob = it.take(10) }, label = { Text("Date of birth") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = dob,
+                    onValueChange = { dob = it.take(10) },
+                    label = { Text("Date of birth") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
                     value = pass,
@@ -319,6 +371,12 @@ class MainActivity : ComponentActivity() {
                             else -> {
                                 DB.auth.createUserWithEmailAndPassword(email.trim(), pass)
                                     .addOnSuccessListener {
+                                        val uid = it.user?.uid ?: return@addOnSuccessListener
+                                        val data = mapOf(
+                                            "email" to email.trim(),
+                                            "points" to 0L
+                                        )
+                                        DB.fs.collection("users").document(uid).set(data, SetOptions.merge())
                                         nav.navigate(Route.Dashboard.name) {
                                             popUpTo(nav.graph.findStartDestination().id) { inclusive = true }
                                             launchSingleTop = true
@@ -347,11 +405,25 @@ class MainActivity : ComponentActivity() {
                     .padding(24.dp)
                     .fillMaxSize()
             ) {
-                OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("Mail id") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text("Mail id") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = dob, onValueChange = { dob = it.take(10) }, label = { Text("Date of Birth MM/DD/YYYY") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = dob,
+                    onValueChange = { dob = it.take(10) },
+                    label = { Text("Date of Birth MM/DD/YYYY") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(16.dp))
-                Button(onClick = { nav.navigate(Route.ForgotStep2.name) }, modifier = Modifier.fillMaxWidth()) { Text("Next") }
+                Button(onClick = { nav.navigate(Route.ForgotStep2.name) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Next")
+                }
             }
         }
     }
@@ -364,16 +436,35 @@ class MainActivity : ComponentActivity() {
         var p2 by rememberSaveable { mutableStateOf("") }
         var show1 by rememberSaveable { mutableStateOf(false) }
         var show2 by rememberSaveable { mutableStateOf(false) }
-        Scaffold(topBar = { SimpleTopBar(title = "Reset Password", onBack = { nav.popBackStack() }) }, snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
+        Scaffold(
+            topBar = { SimpleTopBar(title = "Reset Password", onBack = { nav.popBackStack() }) },
+            snackbarHost = { SnackbarHost(snackbarHostState) }
+        ) { padding ->
             Column(
                 Modifier
                     .padding(padding)
                     .padding(24.dp)
                     .fillMaxSize()
             ) {
-                OutlinedTextField(value = p1, onValueChange = { p1 = it }, label = { Text("Create New Password") }, singleLine = true, visualTransformation = if (show1) VisualTransformation.None else PasswordVisualTransformation(), trailingIcon = { TextButton(onClick = { show1 = !show1 }) { Text(if (show1) "Hide" else "Show") } }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = p1,
+                    onValueChange = { p1 = it },
+                    label = { Text("Create New Password") },
+                    singleLine = true,
+                    visualTransformation = if (show1) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = { TextButton(onClick = { show1 = !show1 }) { Text(if (show1) "Hide" else "Show") } },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = p2, onValueChange = { p2 = it }, label = { Text("Confirm Password") }, singleLine = true, visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation(), trailingIcon = { TextButton(onClick = { show2 = !show2 }) { Text(if (show2) "Hide" else "Show") } }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = p2,
+                    onValueChange = { p2 = it },
+                    label = { Text("Confirm Password") },
+                    singleLine = true,
+                    visualTransformation = if (show2) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = { TextButton(onClick = { show2 = !show2 }) { Text(if (show2) "Hide" else "Show") } },
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(16.dp))
                 Button(
                     onClick = {
@@ -395,15 +486,36 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun ensureUserDocExists() {
+        val uid = DB.auth.currentUser?.uid ?: return
+        val email = DB.auth.currentUser?.email ?: ""
+        val defaultName = email.substringBefore("@")
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val data = mapOf(
+            "email" to email,
+            "name" to defaultName,
+            "points" to FieldValue.increment(0L)
+        )
+        DB.fs.collection("users").document(uid).set(data, SetOptions.merge())
+    }
+
     @Composable
     private fun DashboardScreen(nav: NavHostController) {
+        DisposableEffect(Unit) {
+            ensureUserDocExists()
+            onDispose { }
+        }
         val entries = listOf(
             Triple("Profile", Route.Profile.name, Icons.Outlined.AccountCircle),
             Triple("Task", Route.Task.name, Icons.Outlined.Build),
             Triple("Leaderboard", Route.Leaderboard.name, Icons.Outlined.Leaderboard),
             Triple("Discussion", Route.Discussion.name, Icons.Outlined.Chat)
         )
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
             Text("Dashboard", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(12.dp))
             ElevatedCard(Modifier.fillMaxWidth()) {
@@ -429,20 +541,34 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun TaskScreen(nav: NavHostController) {
-        val ctx = LocalContext.current
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         val scope = rememberCoroutineScope()
         val snack = remember { SnackbarHostState() }
         var adding by rememberSaveable { mutableStateOf(false) }
         var title by rememberSaveable { mutableStateOf("") }
         var due by rememberSaveable { mutableStateOf("") }
-        var tasks by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) }
+        var difficulty by rememberSaveable { mutableStateOf("") }
+        var category by rememberSaveable { mutableStateOf("") }
+        var subject by rememberSaveable { mutableStateOf("") }
+        var tasks by remember { mutableStateOf<List<TaskItem>>(emptyList()) }
         var showNotifWarning by remember { mutableStateOf(false) }
+        var editingTask by remember { mutableStateOf<TaskItem?>(null) }
+        val uid = DB.auth.currentUser?.uid ?: "anon"
 
-        DisposableEffect(Unit) {
-            val reg = DB.fs.collection("tasks").orderBy("createdAt")
+        DisposableEffect(uid) {
+            val reg = DB.fs.collection("tasks")
+                .whereEqualTo("uid", uid)
                 .addSnapshotListener { snap, _ ->
                     tasks = snap?.documents?.map {
-                        Triple(it.id, it.getString("title").orEmpty(), it.getString("due").orEmpty())
+                        TaskItem(
+                            id = it.id,
+                            title = it.getString("title").orEmpty(),
+                            due = it.getString("due").orEmpty(),
+                            difficulty = it.getString("difficulty").orEmpty(),
+                            category = it.getString("category").orEmpty(),
+                            subject = it.getString("subject").orEmpty(),
+                            completed = it.getBoolean("completed") ?: false
+                        )
                     }.orEmpty()
                 }
             showNotifWarning = !NotificationManagerCompat.from(ctx).areNotificationsEnabled()
@@ -468,21 +594,40 @@ class MainActivity : ComponentActivity() {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Notifications are disabled", color = MaterialTheme.colorScheme.onErrorContainer)
+                        Text(
+                            "Notifications are disabled",
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
                         TextButton(onClick = { openAppNotifSettings(ctx) }) { Text("Enable") }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Tasks", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Tasks",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { adding = !adding }) { Text(if (adding) "Cancel" else "Add") }
+                        TextButton(onClick = { adding = !adding }) {
+                            Text(if (adding) "Cancel" else "Add")
+                        }
                         TextButton(onClick = {
-                            scheduleTestReminder(ctx)
-                            scope.launch { snack.showSnackbar("Test notification in 5 seconds") }
-                        }) { Text("Test notify") }
-                        TextButton(onClick = { showNotificationNow(ctx, "Ping now test") }) { Text("Ping now") }
+                            val bestTitle = findHardestTaskDueSoon(tasks)
+                            if (bestTitle != null) {
+                                showNotificationNow(ctx, "Hardest upcoming task: $bestTitle")
+                                scope.launch { snack.showSnackbar("Smart reminder sent") }
+                            } else {
+                                scope.launch { snack.showSnackbar("No upcoming tasks for smart reminder") }
+                            }
+                        }) {
+                            Text("Smart reminder")
+                        }
                     }
                 }
 
@@ -497,9 +642,37 @@ class MainActivity : ComponentActivity() {
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
+                        value = subject,
+                        onValueChange = { subject = it },
+                        label = { Text("Subject") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = difficulty,
+                        onValueChange = { difficulty = it },
+                        label = { Text("Difficulty (Easy/Medium/Hard)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category (Assignment/Exam/Project)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
                         value = due,
                         onValueChange = { due = it },
-                        label = { Text("Due (MM/dd/yyyy HH:mm or MM/dd/yyyy hh:mm AM/PM)") },
+                        label = {
+                            Text(
+                                "Due (MM/dd/yyyy HH:mm or MM/dd/yyyy hh:mm AM/PM)"
+                            )
+                        },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -508,7 +681,11 @@ class MainActivity : ComponentActivity() {
                         onClick = {
                             val trimmedTitle = title.trim()
                             val trimmedDue = due.trim()
-                            val dueMillis = if (trimmedDue.isBlank()) null else parseDueMillis(trimmedDue)
+                            val trimmedDifficulty = difficulty.trim()
+                            val trimmedCategory = category.trim()
+                            val trimmedSubject = subject.trim()
+                            val dueMillis =
+                                if (trimmedDue.isBlank()) null else parseDueMillis(trimmedDue)
                             if (trimmedTitle.isBlank()) {
                                 scope.launch { snack.showSnackbar("Please enter a title") }
                                 return@Button
@@ -520,17 +697,33 @@ class MainActivity : ComponentActivity() {
                             val data = mapOf(
                                 "title" to trimmedTitle,
                                 "due" to trimmedDue,
+                                "difficulty" to trimmedDifficulty,
+                                "category" to trimmedCategory,
+                                "subject" to trimmedSubject,
                                 "createdAt" to Timestamp.now(),
-                                "uid" to (DB.auth.currentUser?.uid ?: "anon")
+                                "uid" to uid,
+                                "completed" to false
                             )
                             DB.fs.collection("tasks").add(data).addOnSuccessListener { ref ->
-                                scheduleReminder(ctx, ref.id, trimmedTitle, trimmedDue)
+                                try {
+                                    scheduleReminder(ctx, ref.id, trimmedTitle, trimmedDue)
+                                } catch (e: Exception) {
+                                    Log.e("TASKS", "Failed to schedule reminder", e)
+                                }
+                                showNotificationNow(ctx, "Task added: $trimmedTitle")
                                 scope.launch { snack.showSnackbar("Task saved") }
                             }.addOnFailureListener { e ->
-                                scope.launch { snack.showSnackbar(e.message ?: "Failed to save task") }
+                                scope.launch {
+                                    snack.showSnackbar(
+                                        e.message ?: "Failed to save task"
+                                    )
+                                }
                             }
                             title = ""
                             due = ""
+                            difficulty = ""
+                            category = ""
+                            subject = ""
                             adding = false
                         },
                         enabled = title.isNotBlank(),
@@ -550,12 +743,16 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     } else {
-                        itemsIndexed(tasks, key = { _, t -> t.first }) { i, triple ->
-                            val (id, t, d) = triple
+                        val sorted = tasks.sortedWith(
+                            compareByDescending<TaskItem> { difficultyScore(it.difficulty) }
+                                .thenBy { parseDueMillis(it.due) ?: Long.MAX_VALUE }
+                        )
+                        itemsIndexed(sorted, key = { _, t -> t.id }) { index, task ->
                             OutlinedCard(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 6.dp),
+                                    .padding(vertical = 6.dp)
+                                    .clickable { editingTask = task },
                                 colors = CardDefaults.outlinedCardColors()
                             ) {
                                 Row(
@@ -565,16 +762,85 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(Modifier.weight(1f)) {
-                                        Text("${i + 1}. $t", style = MaterialTheme.typography.titleMedium)
-                                        if (d.isNotBlank()) Text("Due: $d", style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            "${index + 1}. ${task.title}",
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        if (task.subject.isNotBlank()) Text(
+                                            "Subject: ${task.subject}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        if (task.category.isNotBlank()) Text(
+                                            "Category: ${task.category}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        if (task.difficulty.isNotBlank()) Text(
+                                            "Difficulty: ${task.difficulty}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        if (task.due.isNotBlank()) Text(
+                                            "Due: ${task.due}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            if (task.completed) "Status: Completed" else "Status: Pending",
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            WorkManager.getInstance(ctx).cancelUniqueWork("task_$id")
-                                            DB.fs.collection("tasks").document(id).delete()
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        TextButton(
+                                            onClick = {
+                                                val newCompleted = !task.completed
+                                                val docRef =
+                                                    DB.fs.collection("tasks").document(task.id)
+                                                val updates = mutableMapOf<String, Any>(
+                                                    "completed" to newCompleted
+                                                )
+                                                if (newCompleted) {
+                                                    updates["completedAt"] = Timestamp.now()
+                                                }
+                                                docRef.update(updates as Map<String, Any>)
+                                                    .addOnFailureListener {
+                                                        scope.launch {
+                                                            snack.showSnackbar(
+                                                                "Failed to update task"
+                                                            )
+                                                        }
+                                                    }
+                                                val deltaPoints = if (newCompleted) {
+                                                    10L + difficultyScore(task.difficulty)
+                                                        .toLong() * 5L
+                                                } else {
+                                                    -(10L + difficultyScore(task.difficulty)
+                                                        .toLong() * 5L)
+                                                }
+                                                val userRef =
+                                                    DB.fs.collection("users").document(uid)
+                                                userRef.set(
+                                                    mapOf(
+                                                        "points" to FieldValue.increment(
+                                                            deltaPoints
+                                                        )
+                                                    ),
+                                                    SetOptions.merge()
+                                                )
+                                            }
+                                        ) {
+                                            Text(if (task.completed) "Undo" else "Done")
                                         }
-                                    ) {
-                                        Icon(imageVector = Icons.Outlined.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                        IconButton(
+                                            onClick = {
+                                                cancelReminder(ctx, task.id)
+                                                DB.fs.collection("tasks").document(task.id)
+                                                    .delete()
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Delete,
+                                                contentDescription = "Delete",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -582,7 +848,114 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+
+            val edit = editingTask
+            if (edit != null) {
+                var eTitle by remember { mutableStateOf(edit.title) }
+                var eSubject by remember { mutableStateOf(edit.subject) }
+                var eDifficulty by remember { mutableStateOf(edit.difficulty) }
+                var eCategory by remember { mutableStateOf(edit.category) }
+                var eDue by remember { mutableStateOf(edit.due) }
+
+                AlertDialog(
+                    onDismissRequest = { editingTask = null },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val trimmedTitle = eTitle.trim()
+                            val trimmedDue = eDue.trim()
+                            val dueMillis =
+                                if (trimmedDue.isBlank()) null else parseDueMillis(trimmedDue)
+                            if (trimmedTitle.isBlank()) {
+                                scope.launch { snack.showSnackbar("Title cannot be empty") }
+                                return@TextButton
+                            }
+                            if (trimmedDue.isNotBlank() && dueMillis == null) {
+                                scope.launch { snack.showSnackbar("Invalid due format") }
+                                return@TextButton
+                            }
+                            val docRef = DB.fs.collection("tasks").document(edit.id)
+                            val updates = mapOf(
+                                "title" to trimmedTitle,
+                                "subject" to eSubject.trim(),
+                                "difficulty" to eDifficulty.trim(),
+                                "category" to eCategory.trim(),
+                                "due" to trimmedDue
+                            )
+                            docRef.update(updates).addOnSuccessListener {
+                                try {
+                                    scheduleReminder(ctx, edit.id, trimmedTitle, trimmedDue)
+                                } catch (e: Exception) {
+                                    Log.e("TASKS", "Failed to reschedule reminder", e)
+                                }
+                            }.addOnFailureListener {
+                                scope.launch { snack.showSnackbar("Failed to update task") }
+                            }
+                            editingTask = null
+                        }) { Text("Save") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingTask = null }) { Text("Cancel") }
+                    },
+                    title = { Text("Edit task") },
+                    text = {
+                        Column {
+                            OutlinedTextField(
+                                value = eTitle,
+                                onValueChange = { eTitle = it },
+                                label = { Text("Title") },
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = eSubject,
+                                onValueChange = { eSubject = it },
+                                label = { Text("Subject") },
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = eDifficulty,
+                                onValueChange = { eDifficulty = it },
+                                label = { Text("Difficulty") },
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = eCategory,
+                                onValueChange = { eCategory = it },
+                                label = { Text("Category") },
+                                singleLine = true
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = eDue,
+                                onValueChange = { eDue = it },
+                                label = { Text("Due") },
+                                singleLine = true
+                            )
+                        }
+                    }
+                )
+            }
         }
+    }
+
+    private fun findHardestTaskDueSoon(tasks: List<TaskItem>): String? {
+        if (tasks.isEmpty()) return null
+        val now = System.currentTimeMillis()
+        val soonWindow = now + TimeUnit.HOURS.toMillis(48)
+        val candidates = tasks.mapNotNull { task ->
+            val dueMs = parseDueMillis(task.due) ?: return@mapNotNull null
+            if (dueMs in now..soonWindow && !task.completed) {
+                Pair(task, dueMs)
+            } else null
+        }
+        if (candidates.isEmpty()) return null
+        val best = candidates.maxWith(
+            compareBy<Pair<TaskItem, Long>> { difficultyScore(it.first.difficulty) }
+                .thenBy { -it.second }
+        )
+        return best.first.title
     }
 
     private fun scheduleReminder(context: Context, workId: String, title: String, dueStr: String) {
@@ -593,38 +966,63 @@ class MainActivity : ComponentActivity() {
         }
         val now = System.currentTimeMillis()
         val target = dueMillis ?: (now + 30_000L)
-        var delay = target - now
-        if (delay < 5_000L) delay = 5_000L
+        var trigger = target
+        if (trigger < now + 5_000L) trigger = now + 5_000L
+
         val permitted = Build.VERSION.SDK_INT < 33 ||
-                ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+                ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) == PackageManager.PERMISSION_GRANTED
         if (!permitted) {
-            Log.w("TASKS", "POST_NOTIFICATIONS not granted; worker may skip.")
+            Log.w("TASKS", "POST_NOTIFICATIONS not granted; alarm will still be set but may not show notification")
         }
-        val nm = NotificationManagerCompat.from(context)
-        if (!nm.areNotificationsEnabled()) {
-            Log.w("TASKS", "Notifications disabled in system settings.")
+
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val canSchedule = alarmManager.canScheduleExactAlarms()
+            if (!canSchedule) {
+                Log.w("TASKS", "Exact alarms not allowed for this app")
+                return
+            }
         }
-        val input = Data.Builder().putString("title", title).build()
-        val builder = OneTimeWorkRequestBuilder<TaskNotifyWorker>()
-            .setInitialDelay(delay, java.util.concurrent.TimeUnit.MILLISECONDS)
-            .setConstraints(Constraints.NONE)
-            .setInputData(input)
-        if (delay <= 15 * 60 * 1000L) builder.setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-        val req = builder.build()
-        WorkManager.getInstance(context).enqueueUniqueWork("task_$workId", ExistingWorkPolicy.REPLACE, req)
-        Log.d("TASKS", "Scheduled title=$title due='$dueStr' delayMs=$delay workId=${req.id}")
+
+        val intent = Intent(context, TaskReminderReceiver::class.java).apply {
+            putExtra("title", title)
+        }
+        val requestCode = workId.hashCode()
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        try {
+            if (Build.VERSION.SDK_INT >= 23) {
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pendingIntent)
+            } else {
+                alarmManager.setExact(AlarmManager.RTC_WAKEUP, trigger, pendingIntent)
+            }
+            Log.d("TASKS", "Exact alarm set for title=$title at=$trigger requestCode=$requestCode")
+        } catch (se: SecurityException) {
+            Log.e("TASKS", "Exact alarm not permitted for this app", se)
+        }
     }
 
-    private fun scheduleTestReminder(context: Context) {
-        val input = Data.Builder().putString("title", "Test notification").build()
-        val req = OneTimeWorkRequestBuilder<TaskNotifyWorker>()
-            .setInitialDelay(5, java.util.concurrent.TimeUnit.SECONDS)
-            .setConstraints(Constraints.NONE)
-            .setInputData(input)
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
-        WorkManager.getInstance(context).enqueueUniqueWork("task_test", ExistingWorkPolicy.REPLACE, req)
-        Log.d("TASKS", "Scheduled test notification in 5s id=${req.id}")
+    private fun cancelReminder(context: Context, workId: String) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val intent = Intent(context, TaskReminderReceiver::class.java)
+        val requestCode = workId.hashCode()
+        val pendingIntent = PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+        Log.d("TASKS", "Cancelled alarm for workId=$workId requestCode=$requestCode")
     }
 
     private fun openAppNotifSettings(context: Context) {
@@ -637,7 +1035,40 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun LeaderboardScreen(nav: NavHostController) {
-        val sample = listOf("Aarav" to 100, "Taylor" to 95, "Michael" to 94)
+        val entriesState = remember { mutableStateOf<List<Pair<String, Long>>>(emptyList()) }
+        val uid = DB.auth.currentUser?.uid
+        val email = DB.auth.currentUser?.email
+
+        DisposableEffect(Unit) {
+            ensureUserDocExists()
+            val reg = DB.fs.collection("users")
+                .orderBy("points", Query.Direction.DESCENDING)
+                .limit(20)
+                .addSnapshotListener { snap, _ ->
+                    var list = snap?.documents?.map {
+                        val name = it.getString("name")
+                            ?: it.getString("email")
+                            ?: it.id
+                        val points = when (val p = it.get("points")) {
+                            is Number -> p.toLong()
+                            else -> 0L
+                        }
+                        name to points
+                    }.orEmpty()
+                    if (list.isEmpty() && uid != null && email != null) {
+                        val defaultName = email.substringBefore("@")
+                            .replaceFirstChar { c ->
+                                if (c.isLowerCase()) c.titlecase() else c.toString()
+                            }
+                        list = listOf(defaultName to 0L)
+                    }
+                    entriesState.value = list
+                }
+            onDispose { reg.remove() }
+        }
+
+        val entries = entriesState.value
+
         Scaffold(topBar = { SimpleTopBar(title = "Leaderboard", onBack = { nav.popBackStack() }) }) { padding ->
             Column(
                 Modifier
@@ -645,21 +1076,41 @@ class MainActivity : ComponentActivity() {
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .fillMaxSize()
             ) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Text("Name", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Text(
+                        "Name",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f)
+                    )
                     Text("Points", style = MaterialTheme.typography.titleMedium)
                 }
                 Divider()
-                LazyColumn(Modifier.weight(1f)) {
-                    itemsIndexed(sample) { index, (name, points) ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("${index + 1}. $name", modifier = Modifier.weight(1f))
-                            Text(points.toString())
+                if (entries.isEmpty()) {
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        "No leaderboard data yet. Complete tasks to earn points.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    LazyColumn(Modifier.weight(1f)) {
+                        itemsIndexed(entries) { index, (name, points) ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("${index + 1}. $name", modifier = Modifier.weight(1f))
+                                Text(points.toString())
+                            }
+                            Divider()
                         }
-                        Divider()
                     }
                 }
-                TextButton(onClick = {}, modifier = Modifier.align(Alignment.Start)) { Text("View my position") }
             }
         }
     }
@@ -674,17 +1125,24 @@ class MainActivity : ComponentActivity() {
             val threadRef = DB.fs.collection("threads").document("default")
             threadRef.get().addOnSuccessListener { snap ->
                 if (!snap.exists()) {
-                    threadRef.set(mapOf("description" to "Welcome to FocuSticks discussion!"), SetOptions.merge())
+                    threadRef.set(
+                        mapOf("description" to "Welcome to FocuSticks discussion!"),
+                        SetOptions.merge()
+                    )
                 }
             }
             val reg1 = threadRef.addSnapshotListener { doc, _ ->
-                desc = doc?.getString("description").orEmpty().ifBlank { "No description yet." }
+                desc = doc?.getString("description").orEmpty()
+                    .ifBlank { "No description yet." }
             }
             val reg2 = threadRef.collection("comments").orderBy("createdAt")
                 .addSnapshotListener { snap, _ ->
                     comments = snap?.documents?.map { it.getString("text").orEmpty() }.orEmpty()
                 }
-            onDispose { reg1.remove(); reg2.remove() }
+            onDispose {
+                reg1.remove()
+                reg2.remove()
+            }
         }
 
         Scaffold(topBar = { SimpleTopBar(title = "Discussion", onBack = { nav.popBackStack() }) }) { padding ->
@@ -694,13 +1152,25 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             ) {
-                Text("Discussion", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    "Discussion",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge
+                )
                 Spacer(Modifier.height(16.dp))
-                Text("Description", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Description",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
                 Spacer(Modifier.height(8.dp))
                 OutlinedCard { Text(desc, modifier = Modifier.padding(12.dp)) }
                 Spacer(Modifier.height(20.dp))
-                Text("Comments", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Comments",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
                 Spacer(Modifier.height(8.dp))
                 OutlinedCard {
                     Column(Modifier.padding(12.dp)) {
@@ -712,7 +1182,13 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                OutlinedTextField(value = newComment, onValueChange = { newComment = it }, label = { Text("Add a comment") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = newComment,
+                    onValueChange = { newComment = it },
+                    label = { Text("Add a comment") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = {
@@ -722,7 +1198,8 @@ class MainActivity : ComponentActivity() {
                             "uid" to (DB.auth.currentUser?.uid ?: "anon")
                         )
                         if (newComment.isNotBlank()) {
-                            DB.fs.collection("threads").document("default").collection("comments").add(data)
+                            DB.fs.collection("threads").document("default")
+                                .collection("comments").add(data)
                             newComment = ""
                         }
                     },
@@ -734,6 +1211,48 @@ class MainActivity : ComponentActivity() {
 
     @Composable
     private fun StreaksScreen(nav: NavHostController) {
+        val uid = DB.auth.currentUser?.uid ?: "anon"
+        var currentStreak by remember { mutableStateOf(0) }
+        var totalCompleted by remember { mutableStateOf(0) }
+        var totalPoints by remember { mutableStateOf(0L) }
+
+        DisposableEffect(uid) {
+            val tasksReg = DB.fs.collection("tasks")
+                .whereEqualTo("uid", uid)
+                .whereEqualTo("completed", true)
+                .addSnapshotListener { snap, _ ->
+                    val docs = snap?.documents.orEmpty()
+                    totalCompleted = docs.size
+                    val dates = docs.mapNotNull { d ->
+                        val ts = d.getTimestamp("completedAt") ?: d.getTimestamp("createdAt")
+                        ts?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())
+                            ?.toLocalDate()
+                    }.toSet()
+                    val today = LocalDate.now()
+                    var streak = 0
+                    var cursor = today
+                    while (dates.contains(cursor)) {
+                        streak += 1
+                        cursor = cursor.minusDays(1)
+                    }
+                    currentStreak = streak
+                }
+
+            val userReg = DB.fs.collection("users").document(uid)
+                .addSnapshotListener { snap, _ ->
+                    val pts = when (val p = snap?.get("points")) {
+                        is Number -> p.toLong()
+                        else -> 0L
+                    }
+                    totalPoints = pts
+                }
+
+            onDispose {
+                tasksReg.remove()
+                userReg.remove()
+            }
+        }
+
         Scaffold(topBar = { SimpleTopBar(title = "Streaks", onBack = { nav.popBackStack() }) }) { padding ->
             Column(
                 modifier = Modifier
@@ -741,17 +1260,41 @@ class MainActivity : ComponentActivity() {
                     .fillMaxSize()
                     .padding(horizontal = 20.dp, vertical = 8.dp)
             ) {
-                Text("Streaks", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.headlineLarge)
+                Text(
+                    "Streaks",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineLarge
+                )
                 Spacer(Modifier.height(24.dp))
-                Text("Current Streak", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Current Streak (days)",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
                 Spacer(Modifier.height(4.dp))
-                Text("5 Points")
+                Text(currentStreak.toString())
                 Spacer(Modifier.height(28.dp))
-                Text("Total tasks completed", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Total tasks completed",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
                 Spacer(Modifier.height(4.dp))
-                Text("10")
+                Text(totalCompleted.toString())
                 Spacer(Modifier.height(28.dp))
-                Text("View Task", textDecoration = TextDecoration.Underline, modifier = Modifier.clickable { nav.navigate(Route.Task.name) })
+                Text(
+                    "Total points earned",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(totalPoints.toString())
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    "View Task",
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable { nav.navigate(Route.Task.name) }
+                )
             }
         }
     }
@@ -769,9 +1312,13 @@ class MainActivity : ComponentActivity() {
         var phone by rememberSaveable { mutableStateOf("") }
 
         DisposableEffect(uid) {
+            ensureUserDocExists()
             val ref = DB.fs.collection("users").document(uid)
             val reg = ref.addSnapshotListener { doc, _ ->
-                val defaultName = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                val defaultName = email.substringBefore("@")
+                    .replaceFirstChar {
+                        if (it.isLowerCase()) it.titlecase() else it.toString()
+                    }
                 name = doc?.getString("name") ?: defaultName
                 studentId = doc?.getString("studentId") ?: "00947890"
                 phone = doc?.getString("phone") ?: "+1 (203)0109999"
@@ -785,8 +1332,12 @@ class MainActivity : ComponentActivity() {
                     title = "Profile",
                     onBack = { nav.popBackStack() },
                     actions = {
-                        TextButton(onClick = { edit = !edit }) { Text(if (edit) "Done" else "Edit") }
-                        TextButton(onClick = { showConfirm = true }) { Text("Logout") }
+                        TextButton(onClick = { edit = !edit }) {
+                            Text(if (edit) "Done" else "Edit")
+                        }
+                        TextButton(onClick = { showConfirm = true }) {
+                            Text("Logout")
+                        }
                     }
                 )
             },
@@ -813,12 +1364,21 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = {
-                            val data = mapOf("name" to name.trim(), "studentId" to studentId.trim(), "phone" to phone.trim(), "updatedAt" to Timestamp.now())
-                            DB.fs.collection("users").document(uid).set(data, SetOptions.merge())
+                            val data = mapOf(
+                                "name" to name.trim(),
+                                "studentId" to studentId.trim(),
+                                "phone" to phone.trim(),
+                                "email" to email,
+                                "updatedAt" to Timestamp.now()
+                            )
+                            DB.fs.collection("users").document(uid)
+                                .set(data, SetOptions.merge())
                             scope.launch { snackbarHostState.showSnackbar("Profile updated") }
                             edit = false
                         },
-                        modifier = Modifier.fillMaxWidth(0.5f).height(44.dp)
+                        modifier = Modifier
+                            .fillMaxWidth(0.5f)
+                            .height(44.dp)
                     ) { Text("Save") }
                 } else {
                     ProfileField(label = "Name", value = name)
@@ -829,6 +1389,12 @@ class MainActivity : ComponentActivity() {
                     Spacer(Modifier.height(10.dp))
                     ProfileField(label = "Phone no", value = phone)
                 }
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    "View streaks",
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable { nav.navigate(Route.Streaks.name) }
+                )
             }
             if (showConfirm) {
                 AlertDialog(
@@ -848,28 +1414,56 @@ class MainActivity : ComponentActivity() {
                             }
                         ) { Text("Yes, Logout") }
                     },
-                    dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel") } }
+                    dismissButton = {
+                        TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+                    }
                 )
             }
         }
     }
 
     @Composable
-    private fun EditableField(label: String, value: String, enabled: Boolean = true, onChange: (String) -> Unit) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+    private fun EditableField(
+        label: String,
+        value: String,
+        enabled: Boolean = true,
+        onChange: (String) -> Unit
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+        ) {
             Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            OutlinedTextField(value = value, onValueChange = { onChange(it) }, singleLine = true, enabled = enabled, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(
+                value = value,
+                onValueChange = { onChange(it) },
+                singleLine = true,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
     @Composable
     private fun ProfileField(label: String, value: String) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp)
+        ) {
             Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
-            OutlinedCard(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.outlinedCardColors()) {
-                Text(text = value, modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.outlinedCardColors()
+            ) {
+                Text(
+                    text = value,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    style = MaterialTheme.typography.bodyLarge
+                )
             }
         }
     }
@@ -878,57 +1472,43 @@ class MainActivity : ComponentActivity() {
     private fun AvatarLarge() {
         Surface(shape = MaterialTheme.shapes.extraLarge, tonalElevation = 6.dp, modifier = Modifier.size(96.dp)) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Icon(imageVector = Icons.Outlined.AccountCircle, contentDescription = "Avatar", modifier = Modifier.size(72.dp))
+                Icon(
+                    imageVector = Icons.Outlined.AccountCircle,
+                    contentDescription = "Avatar",
+                    modifier = Modifier.size(72.dp)
+                )
             }
         }
-    }
-}
-
-class TaskNotifyWorker(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
-    override suspend fun doWork(): Result {
-        val title = inputData.getString("title") ?: "Task Reminder"
-        val permitted = Build.VERSION.SDK_INT < 33 ||
-                ContextCompat.checkSelfPermission(
-                    applicationContext,
-                    android.Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED
-        if (!permitted) return Result.success()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = applicationContext.getSystemService(NotificationManager::class.java)
-            if (nm.getNotificationChannel("tasks") == null) {
-                val ch = NotificationChannel("tasks", "Task Reminders", NotificationManager.IMPORTANCE_HIGH)
-                nm.createNotificationChannel(ch)
-            }
-        }
-        val intent = Intent(applicationContext, MainActivity::class.java)
-        val pi = PendingIntent.getActivity(
-            applicationContext, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val n = NotificationCompat.Builder(applicationContext, "tasks")
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
-            .setContentTitle("Task Reminder")
-            .setContentText(title)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setContentIntent(pi)
-            .setAutoCancel(true)
-            .build()
-        NotificationManagerCompat.from(applicationContext).notify(title.hashCode(), n)
-        Log.d("TASKS", "Notification shown for title=$title")
-        return Result.success()
     }
 }
 
 private fun showNotificationNow(context: Context, title: String) {
     if (Build.VERSION.SDK_INT >= 33 &&
-        ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
-        != PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) != PackageManager.PERMISSION_GRANTED
     ) return
-    val intent = Intent(context, MainActivity::class.java)
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val nm = context.getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel("tasks") == null) {
+            val ch = NotificationChannel("tasks", "Task Reminders", NotificationManager.IMPORTANCE_HIGH)
+            nm.createNotificationChannel(ch)
+        }
+    }
+
+    val intent = Intent(context, MainActivity::class.java).apply {
+        putExtra("open_route", "task")
+    }
+
     val pi = PendingIntent.getActivity(
-        context, 0, intent,
+        context,
+        0,
+        intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
+
     val n = NotificationCompat.Builder(context, "tasks")
         .setSmallIcon(android.R.drawable.ic_popup_reminder)
         .setContentTitle("Task Reminder")
@@ -937,5 +1517,7 @@ private fun showNotificationNow(context: Context, title: String) {
         .setContentIntent(pi)
         .setAutoCancel(true)
         .build()
+
     NotificationManagerCompat.from(context).notify(title.hashCode(), n)
 }
+
