@@ -25,6 +25,5 @@
         <receiver
             android:name=".TaskReminderReceiver"
             android:exported="false" />
-
     </application>
 </manifest>

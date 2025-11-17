@@ -2,9 +2,24 @@ package com.example.focusticks.ui.screens
 
 import android.util.Patterns
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,23 +50,23 @@ fun LoginScreen(nav: NavHostController) {
 
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it; if (errorText.isNotEmpty()) errorText = "" },
+            onValueChange = {
+                email = it
+                if (errorText.isNotEmpty()) errorText = ""
+            },
             label = { Text("Email") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
-        if (errorText.isNotEmpty()) {
-            Spacer(Modifier.height(6.dp))
-            Text(text = errorText, color = Color.Red, style = MaterialTheme.typography.bodySmall)
-            Spacer(Modifier.height(6.dp))
-        } else {
-            Spacer(Modifier.height(12.dp))
-        }
+        Spacer(Modifier.height(12.dp))
 
         OutlinedTextField(
             value = password,
-            onValueChange = { password = it; if (errorText.isNotEmpty()) errorText = "" },
+            onValueChange = {
+                password = it
+                if (errorText.isNotEmpty()) errorText = ""
+            },
             label = { Text("Password") },
             singleLine = true,
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
@@ -64,7 +79,11 @@ fun LoginScreen(nav: NavHostController) {
         )
 
         Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
             Text(
                 "Forgot Password",
                 style = MaterialTheme.typography.bodyMedium,
@@ -77,11 +96,22 @@ fun LoginScreen(nav: NavHostController) {
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        if (errorText.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = errorText,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodySmall
+            )
+        } else {
+            Spacer(Modifier.height(16.dp))
+        }
+
         Button(
             onClick = {
                 errorText = ""
                 val trimmedEmail = email.trim().lowercase()
+
                 if (!Patterns.EMAIL_ADDRESS.matcher(trimmedEmail).matches()) {
                     errorText = "Enter a valid email address."
                     return@Button
@@ -91,8 +121,8 @@ fun LoginScreen(nav: NavHostController) {
                     return@Button
                 }
 
-                loading = true
                 val auth = Firebase.auth
+                loading = true
 
                 auth.signInWithEmailAndPassword(trimmedEmail, password)
                     .addOnSuccessListener {
@@ -100,38 +130,19 @@ fun LoginScreen(nav: NavHostController) {
                         nav.navigate("dashboard") { launchSingleTop = true }
                     }
                     .addOnFailureListener { ex ->
-                        val code = (ex as? FirebaseAuthException)?.errorCode?.uppercase().orEmpty()
-
-                        when {
-                            code == "ERROR_WRONG_PASSWORD" -> {
-                                loading = false
-                                errorText = "The password you entered is incorrect."
-                            }
-                            code == "ERROR_USER_NOT_FOUND" -> {
-                                loading = false
-                                errorText = "No account found with this email."
-                            }
-                            code == "ERROR_INVALID_EMAIL" -> {
-                                loading = false
-                                errorText = "Enter a valid email address."
-                            }
-                            else -> {
-                                // Ambiguous case like INVALID_LOGIN_CREDENTIALS → check if the email exists
-                                auth.fetchSignInMethodsForEmail(trimmedEmail)
-                                    .addOnSuccessListener { result ->
-                                        loading = false
-                                        val methods = result.signInMethods ?: emptyList()
-                                        errorText = if (methods.isEmpty()) {
-                                            "No account found with this email."
-                                        } else {
-                                            "The password you entered is incorrect."
-                                        }
-                                    }
-                                    .addOnFailureListener {
-                                        loading = false
-                                        errorText = "Login failed. Please try again."
-                                    }
-                            }
+                        loading = false
+                        val code = (ex as? FirebaseAuthException)?.errorCode ?: ""
+                        errorText = when (code) {
+                            "ERROR_WRONG_PASSWORD",
+                            "ERROR_INVALID_CREDENTIAL",
+                            "ERROR_INVALID_LOGIN_CREDENTIALS" ->
+                                "The password you entered is incorrect."
+                            "ERROR_USER_NOT_FOUND" ->
+                                "No account found with this email."
+                            "ERROR_INVALID_EMAIL" ->
+                                "Enter a valid email address."
+                            else ->
+                                "Login failed. Please try again."
                         }
                     }
             },
