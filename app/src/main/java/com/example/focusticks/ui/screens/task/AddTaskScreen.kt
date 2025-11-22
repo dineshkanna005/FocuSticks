@@ -1,15 +1,22 @@
 package com.example.focusticks.ui.screens.task
 
+import android.app.NotificationManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.example.focusticks.scheduleReminder
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
@@ -19,20 +26,21 @@ import com.google.firebase.ktx.Firebase
 @Composable
 fun AddTaskScreen(nav: NavHostController) {
 
-    val uid = Firebase.auth.currentUser?.uid ?: return
+    val uid = Firebase.auth.currentUser?.uid ?: ""
     val db = Firebase.firestore
+    val context = LocalContext.current
 
     var title by remember { mutableStateOf("") }
     var subject by remember { mutableStateOf("") }
-    var difficulty by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("") }
+    var difficulty by remember { mutableStateOf("") }
     var due by remember { mutableStateOf("") }
-    var remindBefore by remember { mutableStateOf("") }
+    var remind by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
             Row(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.primaryContainer)
                     .padding(16.dp),
@@ -44,73 +52,53 @@ fun AddTaskScreen(nav: NavHostController) {
                 Text("Add Task", style = MaterialTheme.typography.headlineMedium)
             }
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
-            modifier = Modifier
-                .padding(padding)
+            Modifier
+                .padding(pad)
                 .padding(16.dp)
-                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
 
-            Text("Tasks", style = MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(12.dp))
-
             OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
+                value = title, onValueChange = { title = it },
                 label = { Text("Title") },
-                placeholder = { Text("Enter task name") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = subject,
-                onValueChange = { subject = it },
+                value = subject, onValueChange = { subject = it },
                 label = { Text("Subject") },
-                placeholder = { Text("Math, Science…") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = difficulty,
-                onValueChange = { difficulty = it },
+                value = difficulty, onValueChange = { difficulty = it },
                 label = { Text("Difficulty") },
-                placeholder = { Text("Easy / Medium / Hard") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = category,
-                onValueChange = { category = it },
+                value = category, onValueChange = { category = it },
                 label = { Text("Category") },
-                placeholder = { Text("Assignment / Exam / Project") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = due,
-                onValueChange = { due = it },
-                label = { Text("Due") },
-                placeholder = { Text("MM/dd/yyyy HH:mm") },
+                value = due, onValueChange = { due = it },
+                label = { Text("Due (MM/dd/yyyy HH:mm)") },
                 modifier = Modifier.fillMaxWidth()
             )
-
             Spacer(Modifier.height(12.dp))
 
             OutlinedTextField(
-                value = remindBefore,
-                onValueChange = { remindBefore = it },
-                label = { Text("Remind before (min)") },
-                placeholder = { Text("10, 20…") },
+                value = remind, onValueChange = { remind = it },
+                label = { Text("Remind Before (minutes)") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -118,22 +106,45 @@ fun AddTaskScreen(nav: NavHostController) {
 
             Button(
                 onClick = {
-                    val data = mapOf(
-                        "title" to title.trim(),
-                        "subject" to subject.trim(),
-                        "difficulty" to difficulty.trim(),
-                        "category" to category.trim(),
-                        "due" to due.trim(),
-                        "remindBeforeMinutes" to (remindBefore.toLongOrNull() ?: 0L),
-                        "completed" to false,
-                        "createdAt" to Timestamp.now()
-                    )
+                    if (uid.isNotEmpty() && title.isNotBlank()) {
 
-                    db.collection("users").document(uid)
-                        .collection("tasks")
-                        .add(data)
+                        db.collection("tasks")
+                            .add(
+                                mapOf(
+                                    "title" to title.trim(),
+                                    "subject" to subject.trim().ifBlank { "General" },
+                                    "difficulty" to difficulty.trim().ifBlank { "Medium" },
+                                    "category" to category.trim().ifBlank { "Assignment" },
+                                    "due" to due.trim(),
+                                    "remindBeforeMinutes" to (remind.toLongOrNull() ?: 10),
+                                    "completed" to false,
+                                    "createdAt" to Timestamp.now(),
+                                    "uid" to uid
+                                )
+                            )
+                            .addOnSuccessListener { doc ->
 
-                    nav.popBackStack()
+                                val notification = NotificationCompat.Builder(context, "task_channel")
+                                    .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                                    .setContentTitle("Task Created")
+                                    .setContentText("New Task: ${title.trim()}")
+                                    .setPriority(NotificationManager.IMPORTANCE_HIGH)
+                                    .build()
+
+                                NotificationManagerCompat.from(context)
+                                    .notify(doc.id.hashCode(), notification)
+
+                                scheduleReminder(
+                                    context,
+                                    doc.id,
+                                    title.trim(),
+                                    due.trim(),
+                                    remind.toLongOrNull() ?: 10
+                                )
+
+                                nav.popBackStack()
+                            }
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {

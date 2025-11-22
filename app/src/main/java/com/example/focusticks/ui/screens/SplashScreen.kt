@@ -8,9 +8,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 
 @Composable
-fun SplashScreen(onDone: () -> Unit) {
+fun SplashScreen(onDone: (String) -> Unit) {
 
     Column(
         modifier = Modifier
@@ -29,7 +31,10 @@ fun SplashScreen(onDone: () -> Unit) {
         Spacer(Modifier.height(40.dp))
 
         Button(
-            onClick = onDone,
+            onClick = {
+                val user = Firebase.auth.currentUser
+                if (user != null) onDone("dashboard") else onDone("login")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(55.dp)

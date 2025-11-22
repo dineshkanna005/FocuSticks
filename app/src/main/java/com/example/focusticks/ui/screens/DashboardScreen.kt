@@ -7,7 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -51,8 +51,7 @@ fun DashboardScreen(nav: NavHostController) {
                     .clickable { nav.navigate("profile") }
             ) {
                 Row(
-                    modifier = Modifier
-                        .padding(20.dp),
+                    modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(Icons.Filled.Person, contentDescription = null)
@@ -72,7 +71,7 @@ fun DashboardScreen(nav: NavHostController) {
                     modifier = Modifier.padding(20.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Filled.Settings, contentDescription = null)
+                    Icon(Icons.Filled.TaskAlt, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Text("Task")
                 }
@@ -114,4 +113,3 @@ fun DashboardScreen(nav: NavHostController) {
         }
     }
 }
-

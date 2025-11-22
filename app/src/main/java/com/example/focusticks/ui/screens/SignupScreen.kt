@@ -1,46 +1,57 @@
 package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SignupScreen(nav: NavHostController) {
-
-    var step by remember { mutableStateOf(1) }
 
     var email by remember { mutableStateOf("") }
     var dob by remember { mutableStateOf("") }
     var pass by remember { mutableStateOf("") }
     var confirmPass by remember { mutableStateOf("") }
-
-    var newPass by remember { mutableStateOf("") }
-    var newConfirmPass by remember { mutableStateOf("") }
-
     var error by remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    var passVisible by remember { mutableStateOf(false) }
+    var confirmVisible by remember { mutableStateOf(false) }
 
-        Spacer(Modifier.height(40.dp))
+    val db = Firebase.firestore
 
-        Text("FocuSticks", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+    Scaffold(
+        topBar = {
+            Row(
+                Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { nav.popBackStack() }) {
+                    Icon(Icons.Filled.ArrowBack, null)
+                }
+                Spacer(Modifier.width(8.dp))
+                Text("FocuSticks", style = MaterialTheme.typography.headlineSmall)
+            }
+        }
+    ) { pad ->
 
-        Spacer(Modifier.height(40.dp))
-
-        if (step == 1) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(pad).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
 
             OutlinedTextField(
                 value = email,
@@ -54,7 +65,7 @@ fun SignupScreen(nav: NavHostController) {
             OutlinedTextField(
                 value = dob,
                 onValueChange = { dob = it },
-                label = { Text("Date of birth") },
+                label = { Text("Date of Birth MM/DD/YYYY") },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -64,7 +75,16 @@ fun SignupScreen(nav: NavHostController) {
                 value = pass,
                 onValueChange = { pass = it },
                 label = { Text("Create Password") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (passVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { passVisible = !passVisible }) {
+                        Icon(
+                            imageVector = if (passVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null
+                        )
+                    }
+                }
             )
 
             Spacer(Modifier.height(16.dp))
@@ -73,97 +93,71 @@ fun SignupScreen(nav: NavHostController) {
                 value = confirmPass,
                 onValueChange = { confirmPass = it },
                 label = { Text("Confirm Password") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(30.dp))
-
-            Button(
-                onClick = { step = 2 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("Confirm")
-            }
-        }
-
-        if (step == 2) {
-
-            OutlinedTextField(
-                value = email,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Mail id") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = dob,
-                onValueChange = { dob = it },
-                label = { Text("Date of Birth MM/DD/YYYY") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(30.dp))
-
-            Button(
-                onClick = { step = 3 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("Next")
-            }
-        }
-
-        if (step == 3) {
-
-            OutlinedTextField(
-                value = newPass,
-                onValueChange = { newPass = it },
-                label = { Text("Create New Password") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = newConfirmPass,
-                onValueChange = { newConfirmPass = it },
-                label = { Text("Confirm Password") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                visualTransformation = if (confirmVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                trailingIcon = {
+                    IconButton(onClick = { confirmVisible = !confirmVisible }) {
+                        Icon(
+                            imageVector = if (confirmVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = null
+                        )
+                    }
+                }
             )
 
             Spacer(Modifier.height(30.dp))
 
             Button(
                 onClick = {
-                    if (newPass == newConfirmPass && newPass.length >= 6) {
-                        Firebase.auth.createUserWithEmailAndPassword(email, newPass)
-                            .addOnSuccessListener {
-                                nav.navigate("dashboard") {
-                                    popUpTo("signup") { inclusive = true }
-                                }
-                            }
-                            .addOnFailureListener { error = it.message ?: "Error" }
-                    } else {
-                        error = "Passwords don't match"
+                    if (email.isBlank() || dob.isBlank() || pass.isBlank() || confirmPass.isBlank()) {
+                        error = "All fields are required"
+                        return@Button
                     }
+                    if (pass != confirmPass) {
+                        error = "Passwords do not match"
+                        return@Button
+                    }
+                    if (pass.length < 6) {
+                        error = "Minimum 6 characters required"
+                        return@Button
+                    }
+
+                    Firebase.auth.createUserWithEmailAndPassword(email, pass)
+                        .addOnSuccessListener { result ->
+                            val uid = result.user?.uid ?: return@addOnSuccessListener
+
+                            db.collection("users").document(uid)
+                                .set(
+                                    mapOf(
+                                        "email" to email,
+                                        "dob" to dob,
+                                        "name" to "",
+                                        "studentId" to "",
+                                        "phone" to "",
+                                        "points" to 0,
+                                        "streakDays" to 0,
+                                        "lastActiveDate" to ""
+                                    ),
+                                    SetOptions.merge()
+                                )
+
+                            nav.navigate("dashboard") {
+                                popUpTo("signup") { inclusive = true }
+                            }
+                        }
+                        .addOnFailureListener {
+                            error = it.message ?: "Signup failed"
+                        }
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
+                modifier = Modifier.fillMaxWidth().height(50.dp)
             ) {
                 Text("Confirm")
             }
-        }
 
-        if (error.isNotEmpty()) {
-            Spacer(Modifier.height(20.dp))
-            Text(error, color = MaterialTheme.colorScheme.error)
+            if (error.isNotEmpty()) {
+                Spacer(Modifier.height(20.dp))
+                Text(error, color = MaterialTheme.colorScheme.error)
+            }
         }
     }
 }

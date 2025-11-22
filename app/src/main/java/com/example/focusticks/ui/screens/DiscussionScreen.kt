@@ -1,6 +1,7 @@
 package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
@@ -72,17 +74,18 @@ fun DiscussionScreen(nav: NavHostController) {
         ) {
 
             Text("Description", style = MaterialTheme.typography.titleMedium)
+
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                placeholder = { Text("Add a description...") },
                 modifier = Modifier.fillMaxWidth()
             )
+
             Button(
                 onClick = {
                     ref.set(
                         mapOf("description" to description),
-                        com.google.firebase.firestore.SetOptions.merge()
+                        SetOptions.merge()
                     )
                 },
                 modifier = Modifier.padding(top = 8.dp)
@@ -93,31 +96,33 @@ fun DiscussionScreen(nav: NavHostController) {
             Spacer(Modifier.height(20.dp))
 
             Text("Comments", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(8.dp))
-
-            if (comments.isEmpty()) {
-                Text("No comments yet.", color = Color.Gray)
-                Spacer(Modifier.height(12.dp))
-            }
+            Spacer(Modifier.height(10.dp))
 
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(comments) { c ->
                     CommentCard(
                         comment = c,
                         onDelete = {
-                            ref.update("comments", FieldValue.arrayRemove(mapOf("id" to c.id, "text" to c.text)))
+                            ref.update(
+                                "comments",
+                                FieldValue.arrayRemove(
+                                    mapOf("id" to c.id, "text" to c.text)
+                                )
+                            )
                         }
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(10.dp))
                 }
             }
 
             Text("Add a comment", style = MaterialTheme.typography.bodyMedium)
+
             OutlinedTextField(
                 value = newComment,
                 onValueChange = { newComment = it },
                 modifier = Modifier.fillMaxWidth()
             )
+
             Button(
                 onClick = {
                     if (newComment.isNotBlank()) {
@@ -147,12 +152,10 @@ fun CommentCard(comment: Comment, onDelete: () -> Unit) {
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-
             Text(
                 text = comment.text,
                 modifier = Modifier.weight(1f)
             )
-
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red)
             }

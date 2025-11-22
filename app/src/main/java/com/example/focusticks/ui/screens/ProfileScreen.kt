@@ -6,168 +6,145 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(nav: NavHostController) {
 
-    val uid = Firebase.auth.currentUser?.uid ?: return
-    val email = Firebase.auth.currentUser?.email ?: ""
+    val user = Firebase.auth.currentUser ?: run {
+        nav.navigate("login") { popUpTo(0) }
+        return
+    }
+
+    val uid = user.uid
     val db = Firebase.firestore
 
     var name by remember { mutableStateOf("") }
     var studentId by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf(user.email ?: "") }
     var phone by remember { mutableStateOf("") }
     var editing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(uid) {
-        db.collection("users").document(uid)
-            .addSnapshotListener { snap, _ ->
-                name = snap?.getString("name") ?: ""
-                studentId = snap?.getString("studentId") ?: ""
-                phone = snap?.getString("phone") ?: ""
+    DisposableEffect(uid) {
+        val listener = db.collection("users").document(uid)
+            .addSnapshotListener { doc, _ ->
+                if (doc != null && doc.exists()) {
+                    name = doc.getString("name") ?: ""
+                    studentId = doc.getString("studentId") ?: ""
+                    email = doc.getString("email") ?: (user.email ?: "")
+                    phone = doc.getString("phone") ?: ""
+                } else {
+                    db.collection("users").document(uid)
+                        .set(
+                            mapOf(
+                                "email" to email,
+                                "name" to "",
+                                "studentId" to "",
+                                "phone" to ""
+                            ),
+                            SetOptions.merge()
+                        )
+                }
             }
+        onDispose { listener.remove() }
     }
 
     Scaffold(
         topBar = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 IconButton(onClick = { nav.popBackStack() }) {
                     Icon(Icons.Filled.ArrowBack, contentDescription = null)
                 }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Profile",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "Edit",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .padding(end = 20.dp)
-                        .clickable { editing = true }
-                )
-                Text(
-                    text = "Logout",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { Firebase.auth.signOut() }
-                )
+                Row {
+                    Text(
+                        text = if (!editing) "Edit" else "Save",
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(end = 20.dp).clickable {
+                            if (editing) {
+                                db.collection("users").document(uid)
+                                    .set(
+                                        mapOf(
+                                            "name" to name,
+                                            "studentId" to studentId,
+                                            "email" to email,
+                                            "phone" to phone
+                                        ),
+                                        SetOptions.merge()
+                                    )
+                            }
+                            editing = !editing
+                        }
+                    )
+                    Text(
+                        text = "Logout",
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            Firebase.auth.signOut()
+                            nav.navigate("login") { popUpTo(0) }
+                        }
+                    )
+                }
             }
         }
-    ) { padding ->
-
+    ) { pad ->
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize()
+            Modifier.padding(pad).padding(16.dp).fillMaxSize()
         ) {
 
-            if (editing) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = studentId,
-                    onValueChange = { studentId = it },
-                    label = { Text("Student ID") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Phone no") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(20.dp))
+            OutlinedTextField(
+                value = name,
+                onValueChange = { if (editing) name = it },
+                label = { Text("Name") },
+                enabled = editing,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                Button(
-                    onClick = {
-                        db.collection("users").document(uid)
-                            .set(
-                                mapOf(
-                                    "name" to name.trim(),
-                                    "studentId" to studentId.trim(),
-                                    "phone" to phone.trim(),
-                                    "updatedAt" to Timestamp.now()
-                                ),
-                                SetOptions.merge()
-                            )
-                        editing = false
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text("Save")
-                }
-            } else {
-                Text("Name", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-                Text("Student ID", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = studentId,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
+            OutlinedTextField(
+                value = studentId,
+                onValueChange = { if (editing) studentId = it },
+                label = { Text("Student ID") },
+                enabled = editing,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-                Text("Email", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-                Text("Phone no", style = MaterialTheme.typography.labelLarge)
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            OutlinedTextField(
+                value = email,
+                onValueChange = { if (editing) email = it },
+                label = { Text("Email") },
+                enabled = editing,
+                modifier = Modifier.fillMaxWidth()
+            )
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(12.dp))
 
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "View streaks",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { nav.navigate("streak") }
-                )
-            }
+            OutlinedTextField(
+                value = phone,
+                onValueChange = { if (editing) phone = it },
+                label = { Text("Phone No") },
+                enabled = editing,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = "View Streaks",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { nav.navigate("streak") }
+            )
         }
     }
 }

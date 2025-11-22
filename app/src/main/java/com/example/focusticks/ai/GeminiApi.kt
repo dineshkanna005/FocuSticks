@@ -22,39 +22,48 @@ object GeminiApi {
     private const val MODEL = "models/gemini-2.0-flash-vision"
 
     fun extractTasks(bitmap: Bitmap): List<AiTask> {
+
         val base64Image = bitmapToBase64(bitmap)
+
         val json = JSONObject()
-        val content = JSONArray()
+        val contents = JSONArray()
         val parts = JSONArray()
-        val imageObj = JSONObject()
-        val inlineData = JSONObject()
 
-        inlineData.put("mimeType", "image/jpeg")
-        inlineData.put("data", base64Image)
-        imageObj.put("inlineData", inlineData)
-        parts.put(imageObj)
+        val imagePart = JSONObject()
+        val imageData = JSONObject()
 
-        val textObj = JSONObject()
-        textObj.put("text", "Extract tasks with fields: title, subject, category, difficulty, due (MM/dd/yyyy HH:mm). Reply only JSON array.")
-        parts.put(textObj)
+        imageData.put("mimeType", "image/jpeg")
+        imageData.put("data", base64Image)
+        imagePart.put("inlineData", imageData)
+        parts.put(imagePart)
+
+        val prompt = JSONObject()
+        prompt.put(
+            "text",
+            "You are a task extraction system. Extract tasks from this image. " +
+                    "Return ONLY a JSON array where each item has: " +
+                    "title, subject, category, difficulty, due (MM/dd/yyyy HH:mm). " +
+                    "If details missing, guess reasonably. No extra text."
+        )
+        parts.put(prompt)
 
         val item = JSONObject()
         item.put("role", "user")
         item.put("parts", parts)
-        content.put(item)
+        contents.put(item)
 
-        json.put("contents", content)
+        json.put("contents", contents)
 
         val url = URL("https://generativelanguage.googleapis.com/v1beta/$MODEL:generateContent?key=$API_KEY")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
         conn.doOutput = true
-
         conn.outputStream.use { it.write(json.toString().toByteArray()) }
 
         val response = conn.inputStream.bufferedReader().readText()
         val result = JSONObject(response)
+
         val text = result
             .getJSONArray("candidates")
             .getJSONObject(0)
@@ -70,11 +79,11 @@ object GeminiApi {
             val o = arr.getJSONObject(i)
             out.add(
                 AiTask(
-                    o.getString("title"),
-                    o.getString("subject"),
-                    o.getString("category"),
-                    o.getString("difficulty"),
-                    o.getString("due")
+                    o.optString("title", ""),
+                    o.optString("subject", "General"),
+                    o.optString("category", "Assignment"),
+                    o.optString("difficulty", "Medium"),
+                    o.optString("due", "")
                 )
             )
         }

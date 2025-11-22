@@ -7,7 +7,7 @@ data class TaskItem(
     val category: String = "",
     val difficulty: String = "",
     val due: String = "",
-    val remindBeforeMinutes: Long = 0L,
-    val completed: Boolean = false
+    val remindBefore: Long = 0L,
+    val completed: Boolean = false,
+    val completedAt: String = ""
 )
-

@@ -15,45 +15,61 @@ import androidx.navigation.NavHostController
 @Composable
 fun BottomBar(nav: NavHostController, route: String?) {
     NavigationBar {
+
         NavigationBarItem(
             selected = route == "task",
             onClick = {
-                nav.navigate("task") {
-                    launchSingleTop = true
-                    restoreState = true
+                if (route != "task") {
+                    nav.navigate("task") {
+                        popUpTo("task") { inclusive = false }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             },
             icon = { Icon(Icons.Outlined.Task, contentDescription = null) },
             label = { Text("Task") }
         )
+
         NavigationBarItem(
             selected = route == "leaderboard",
             onClick = {
-                nav.navigate("leaderboard") {
-                    launchSingleTop = true
-                    restoreState = true
+                if (route != "leaderboard") {
+                    nav.navigate("leaderboard") {
+                        popUpTo("leaderboard") { inclusive = false }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             },
             icon = { Icon(Icons.Outlined.Leaderboard, contentDescription = null) },
             label = { Text("Leaderboard") }
         )
+
         NavigationBarItem(
             selected = route == "discussion",
             onClick = {
-                nav.navigate("discussion") {
-                    launchSingleTop = true
-                    restoreState = true
+                if (route != "discussion") {
+                    nav.navigate("discussion") {
+                        popUpTo("discussion") { inclusive = false }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             },
             icon = { Icon(Icons.Outlined.Chat, contentDescription = null) },
             label = { Text("Discussion") }
         )
+
         NavigationBarItem(
             selected = route == "profile",
             onClick = {
-                nav.navigate("profile") {
-                    launchSingleTop = true
-                    restoreState = true
+                if (route != "profile") {
+                    nav.navigate("profile") {
+                        popUpTo("profile") { inclusive = false }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
                 }
             },
             icon = { Icon(Icons.Outlined.Person, contentDescription = null) },

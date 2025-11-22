@@ -9,86 +9,58 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import java.time.LocalDate
-import java.time.ZoneId
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StreakScreen(nav: NavHostController) {
-    val uid = Firebase.auth.currentUser?.uid ?: return
+
+    val uid = Firebase.auth.currentUser?.uid ?: ""
     val db = Firebase.firestore
 
-    var streak by remember { mutableStateOf(0) }
-    var total by remember { mutableStateOf(0) }
-    var points by remember { mutableStateOf(0L) }
+    var totalPoints by remember { mutableStateOf(0L) }
+    var days by remember { mutableStateOf(0) }
 
-    DisposableEffect(uid) {
-        val reg1 = db.collection("tasks")
-            .whereEqualTo("uid", uid)
-            .whereEqualTo("completed", true)
+    DisposableEffect(Unit) {
+        val listener = db.collection("users").document(uid)
             .addSnapshotListener { snap, _ ->
-                val done = snap?.documents.orEmpty()
-                total = done.size
-
-                val days = done.mapNotNull {
-                    val t = it.getTimestamp("completedAt") ?: return@mapNotNull null
-                    t.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate()
-                }.toSet()
-
-                val today = LocalDate.now()
-                var s = 0
-                var cursor = today
-                while (days.contains(cursor)) {
-                    s++
-                    cursor = cursor.minusDays(1)
+                if (snap != null && snap.exists()) {
+                    totalPoints = snap.getLong("points") ?: 0
+                    days = (snap.getLong("streakDays") ?: 0L).toInt()
                 }
-                streak = s
             }
-
-        val reg2 = db.collection("users")
-            .document(uid)
-            .addSnapshotListener { snap, _ ->
-                points = snap?.getLong("points") ?: 0L
-            }
-
-        onDispose {
-            reg1.remove()
-            reg2.remove()
-        }
+        onDispose { listener.remove() }
     }
 
     Scaffold(
         topBar = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.Filled.ArrowBack, null)
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("Streak", style = MaterialTheme.typography.headlineMedium)
+                Text("Streaks", style = MaterialTheme.typography.headlineSmall)
             }
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
-                .fillMaxSize()
+            Modifier.padding(pad).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Current streak: $streak days", style = MaterialTheme.typography.titleMedium)
+            Text("Total Points: $totalPoints", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(16.dp))
-            Text("Completed tasks: $total", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(16.dp))
-            Text("Total points: $points", style = MaterialTheme.typography.titleMedium)
+            Text("Days Active: $days", style = MaterialTheme.typography.headlineMedium)
+            Spacer(Modifier.height(30.dp))
+            Button(
+                onClick = { nav.navigate("task") },
+                modifier = Modifier.fillMaxWidth().height(55.dp)
+            ) { Text("View Tasks") }
         }
     }
 }

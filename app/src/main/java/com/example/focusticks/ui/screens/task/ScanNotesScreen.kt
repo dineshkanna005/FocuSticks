@@ -19,29 +19,28 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.focusticks.ai.GeminiApi
+import com.example.focusticks.scheduleReminder
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanNotesScreen(nav: NavHostController) {
+
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
 
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var extractedTasks by remember { mutableStateOf(listOf<ScannedTask>()) }
+    var extractedTasks by remember { mutableStateOf(listOf<AiTaskEditable>()) }
     var loading by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
 
@@ -55,8 +54,19 @@ fun ScanNotesScreen(nav: NavHostController) {
                 val bitmap = loadBitmapFromUri(ctx, uri)
                 previewBitmap = bitmap
                 if (bitmap != null) {
-                    val text = runOCR(bitmap)
-                    extractedTasks = parseTasks(text)
+                    val aiTasks = withContext(Dispatchers.IO) {
+                        GeminiApi.extractTasks(bitmap)
+                    }
+                    extractedTasks = aiTasks.map {
+                        AiTaskEditable(
+                            title = it.title,
+                            subject = it.subject,
+                            difficulty = it.difficulty,
+                            category = it.category,
+                            due = it.due,
+                            reminder = "10"
+                        )
+                    }
                 }
                 loading = false
             }
@@ -114,44 +124,57 @@ fun ScanNotesScreen(nav: NavHostController) {
 
             if (extractedTasks.isNotEmpty()) {
                 LazyColumn {
-                    items(extractedTasks) { task ->
+                    items(extractedTasks) { t ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 6.dp)
                         ) {
-                            Column(Modifier.padding(12.dp)) {
+                            Column(Modifier.padding(16.dp)) {
+
                                 OutlinedTextField(
-                                    value = task.title,
-                                    onValueChange = { task.title = it },
+                                    value = t.title,
+                                    onValueChange = { t.title = it },
                                     label = { Text("Title") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(Modifier.height(8.dp))
+
                                 OutlinedTextField(
-                                    value = task.subject,
-                                    onValueChange = { task.subject = it },
+                                    value = t.subject,
+                                    onValueChange = { t.subject = it },
                                     label = { Text("Subject") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(Modifier.height(8.dp))
+
                                 OutlinedTextField(
-                                    value = task.category,
-                                    onValueChange = { task.category = it },
+                                    value = t.difficulty,
+                                    onValueChange = { t.difficulty = it },
+                                    label = { Text("Difficulty") },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = t.category,
+                                    onValueChange = { t.category = it },
                                     label = { Text("Category") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(Modifier.height(8.dp))
+
                                 OutlinedTextField(
-                                    value = task.dueDate,
-                                    onValueChange = { task.dueDate = it },
+                                    value = t.due,
+                                    onValueChange = { t.due = it },
                                     label = { Text("Due (MM/dd/yyyy HH:mm)") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(Modifier.height(8.dp))
+
                                 OutlinedTextField(
-                                    value = task.reminder,
-                                    onValueChange = { task.reminder = it },
+                                    value = t.reminder,
+                                    onValueChange = { t.reminder = it },
                                     label = { Text("Reminder (minutes)") },
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -166,20 +189,29 @@ fun ScanNotesScreen(nav: NavHostController) {
                     onClick = {
                         scope.launch {
                             extractedTasks.forEach { t ->
-                                db.collection("users").document(uid)
-                                    .collection("tasks")
+                                db.collection("tasks")
                                     .add(
                                         mapOf(
+                                            "uid" to uid,
                                             "title" to t.title,
                                             "subject" to t.subject,
+                                            "difficulty" to t.difficulty,
                                             "category" to t.category,
-                                            "difficulty" to "Medium",
-                                            "due" to t.dueDate,
+                                            "due" to t.due,
                                             "remindBeforeMinutes" to (t.reminder.toLongOrNull() ?: 10L),
                                             "createdAt" to Timestamp.now(),
                                             "completed" to false
                                         )
                                     )
+                                    .addOnSuccessListener { doc ->
+                                        scheduleReminder(
+                                            ctx,
+                                            doc.id,
+                                            t.title,
+                                            t.due,
+                                            t.reminder.toLongOrNull() ?: 10L
+                                        )
+                                    }
                             }
                             nav.popBackStack()
                         }
@@ -193,49 +225,14 @@ fun ScanNotesScreen(nav: NavHostController) {
     }
 }
 
-suspend fun runOCR(bitmap: Bitmap): String {
-    return withContext(Dispatchers.Default) {
-        val image = InputImage.fromBitmap(bitmap, 0)
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-        val result = recognizer.process(image).await()
-        result.text
-    }
-}
-
-fun parseTasks(text: String): List<ScannedTask> {
-    val lines = text.split("\n")
-    val tasks = mutableListOf<ScannedTask>()
-
-    var title = ""
-    var subject = ""
-    var due = ""
-    var category = "Assignment"
-
-    for (line in lines) {
-        val lower = line.lowercase()
-        when {
-            "title" in lower -> title = line.substringAfter(":").trim()
-            "subject" in lower -> subject = line.substringAfter(":").trim()
-            "due" in lower -> due = line.substringAfter(":").trim()
-        }
-
-        if (title.isNotEmpty() && subject.isNotEmpty() && due.isNotEmpty()) {
-            tasks.add(
-                ScannedTask(
-                    title = title,
-                    subject = subject,
-                    dueDate = due,
-                    category = category,
-                    reminder = "10"
-                )
-            )
-            title = ""
-            subject = ""
-            due = ""
-        }
-    }
-    return tasks
-}
+data class AiTaskEditable(
+    var title: String,
+    var subject: String,
+    var difficulty: String,
+    var category: String,
+    var due: String,
+    var reminder: String
+)
 
 suspend fun loadBitmapFromUri(context: android.content.Context, uri: Uri): Bitmap? {
     return withContext(Dispatchers.IO) {
@@ -247,11 +244,3 @@ suspend fun loadBitmapFromUri(context: android.content.Context, uri: Uri): Bitma
         }
     }
 }
-
-data class ScannedTask(
-    var title: String = "",
-    var subject: String = "",
-    var dueDate: String = "",
-    var category: String = "",
-    var reminder: String = ""
-)
