@@ -9,10 +9,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.focusticks.NotificationHelper
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import com.example.focusticks.NotificationHelper
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -35,17 +35,19 @@ fun SmartReminderScreen(nav: NavHostController) {
 
                 val df = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US)
                 val now = System.currentTimeMillis()
-                val tomorrow = now + 24 * 60 * 60 * 1000
+                val window = now + 24L * 60L * 60L * 1000L
 
-                val tasks = snap.documents.mapNotNull { doc ->
+                val mapped = snap.documents.mapNotNull { doc ->
                     val dueString = doc.getString("due") ?: return@mapNotNull null
-                    val dueDate = try { df.parse(dueString) } catch (_: Exception) { null }
-                    val diff = when (doc.getString("difficulty")?.lowercase()) {
-                        "hard" -> 3
-                        "medium" -> 2
-                        "easy" -> 1
+                    val dueDate = try { df.parse(dueString) } catch (_: Exception) { null } ?: return@mapNotNull null
+
+                    val diff = when (doc.getString("difficulty")?.trim()?.lowercase()) {
+                        "hard", "high", "difficult" -> 3
+                        "medium", "mid" -> 2
+                        "easy", "low" -> 1
                         else -> 0
                     }
+
                     Triple(
                         TaskItem(
                             id = doc.id,
@@ -54,16 +56,16 @@ fun SmartReminderScreen(nav: NavHostController) {
                             category = doc.getString("category") ?: "",
                             difficulty = doc.getString("difficulty") ?: "",
                             due = dueString,
-                            remindBefore = doc.getLong("remindBeforeMinutes") ?: 0,
+                            remindBefore = doc.getLong("remindBeforeMinutes") ?: 0L,
                             completed = false,
                             completedAt = ""
                         ),
-                        dueDate,
+                        dueDate.time,
                         diff
                     )
                 }
 
-                val urgent = tasks.filter { it.second != null && it.second!!.time in now..tomorrow }
+                val urgent = mapped.filter { it.second in now..window }
                 val hardest = urgent.maxByOrNull { it.third }
 
                 hardestTask = hardest?.first
@@ -105,9 +107,10 @@ fun SmartReminderScreen(nav: NavHostController) {
                 Button(
                     onClick = {
                         NotificationHelper.showReminderNotification(
-                            nav.context,
-                            "Smart Reminder: ${hardestTask!!.title} is due soon!",
-                            hardestTask!!.id
+                            context = nav.context,
+                            title = "Smart Reminder: ${hardestTask!!.title} is due soon!",
+                            taskId = hardestTask!!.id,
+                            type = "reminder"
                         )
                     },
                     modifier = Modifier.fillMaxWidth()

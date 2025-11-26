@@ -140,10 +140,11 @@ fun SignupScreen(nav: NavHostController) {
                                     ),
                                     SetOptions.merge()
                                 )
-
-                            nav.navigate("dashboard") {
-                                popUpTo("signup") { inclusive = true }
-                            }
+                                .addOnSuccessListener {
+                                    nav.navigate("dashboard") {
+                                        popUpTo("signup") { inclusive = true }
+                                    }
+                                }
                         }
                         .addOnFailureListener {
                             error = it.message ?: "Signup failed"

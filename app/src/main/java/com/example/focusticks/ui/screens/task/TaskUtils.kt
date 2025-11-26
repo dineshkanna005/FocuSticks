@@ -1,4 +1,4 @@
-package com.example.focusticks
+package com.example.focusticks.ui.screens.task
 
 import android.annotation.SuppressLint
 import android.app.AlarmManager
@@ -6,63 +6,60 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.example.focusticks.TaskReminderReceiver
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-fun parseDueMillis(d: String): Long? {
+fun parseDueMillis(input: String): Long? {
     val formats = listOf(
         "MM/dd/yyyy HH:mm",
-        "MM/dd/yyyy hh:mm a"
+        "MM/dd/yyyy hh:mm a",
+        "MM/dd/yyyy",
+        "MM/dd/yyyy HH:mm:ss"
     )
     for (f in formats) {
         try {
             val sdf = SimpleDateFormat(f, Locale.US)
             sdf.isLenient = false
-            val date = sdf.parse(d)
-            if (date != null) return date.time
-        } catch (_: Exception) {
-        }
+            val d = sdf.parse(input)
+            if (d != null) return d.time
+        } catch (_: Exception) {}
     }
     return null
 }
 
-fun difficultyScore(d: String): Int {
-    return when (d.lowercase()) {
-        "hard" -> 3
-        "medium" -> 2
-        "easy" -> 1
-        else -> 0
-    }
-}
-
 @SuppressLint("ScheduleExactAlarm")
-fun scheduleReminder(context: Context, taskId: String, title: String, due: String, remindBefore: Long?) {
+fun scheduleReminder(
+    context: Context,
+    taskId: String,
+    title: String,
+    due: String,
+    remindBefore: Long?
+) {
     val dueMillis = parseDueMillis(due) ?: return
-    val offset = (remindBefore ?: 0L) * 60000
-    val triggerTime = dueMillis - offset
-    if (triggerTime < System.currentTimeMillis()) return
+    val before = (remindBefore ?: 0L) * 60000L
+    val trigger = dueMillis - before
+    if (trigger <= System.currentTimeMillis()) return
 
     val intent = Intent(context, TaskReminderReceiver::class.java).apply {
-        putExtra("title", title)
         putExtra("taskId", taskId)
+        putExtra("title", "$title is due soon")
     }
 
-    val pendingIntent = PendingIntent.getBroadcast(
+    val pending = PendingIntent.getBroadcast(
         context,
         taskId.hashCode(),
         intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val m = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        if (m.canScheduleExactAlarms()) {
+            m.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
         }
-    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
     } else {
-        alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        m.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
     }
 }

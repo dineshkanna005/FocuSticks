@@ -83,27 +83,10 @@ fun LoginScreen(nav: NavHostController) {
         )
 
         Spacer(Modifier.height(20.dp))
-
         Button(
             onClick = {
                 Firebase.auth.signInWithEmailAndPassword(email.trim(), password.trim())
-                    .addOnSuccessListener { result ->
-                        val uid = result.user?.uid ?: return@addOnSuccessListener
-
-                        db.collection("users").document(uid)
-                            .set(
-                                mapOf(
-                                    "email" to email.trim(),
-                                    "name" to "",
-                                    "studentId" to "",
-                                    "phone" to "",
-                                    "points" to 0,
-                                    "streakDays" to 0,
-                                    "lastActiveDate" to ""
-                                ),
-                                SetOptions.merge()
-                            )
-
+                    .addOnSuccessListener {
                         nav.navigate("dashboard") {
                             popUpTo("login") { inclusive = true }
                         }
@@ -116,7 +99,6 @@ fun LoginScreen(nav: NavHostController) {
         ) {
             Text("Confirm", fontSize = 16.sp)
         }
-
         Spacer(Modifier.height(12.dp))
 
         Text(

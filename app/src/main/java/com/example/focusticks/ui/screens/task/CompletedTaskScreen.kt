@@ -1,9 +1,9 @@
 package com.example.focusticks.ui.screens.task
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -18,17 +18,25 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CompletedTaskScreen(nav: NavHostController) {
+fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
 
     var tasks by remember { mutableStateOf(listOf<TaskItem>()) }
     var flashId by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+    var scrollIndex by remember { mutableStateOf(-1) }
+
+    LaunchedEffect(openTaskId) {
+        if (!openTaskId.isNullOrEmpty() && openType == "completed") {
+            flashId = openTaskId
+        }
+    }
 
     LaunchedEffect(flashId) {
         if (flashId.isNotEmpty()) {
-            kotlinx.coroutines.delay(800)
+            kotlinx.coroutines.delay(1200)
             flashId = ""
         }
     }
@@ -51,7 +59,18 @@ fun CompletedTaskScreen(nav: NavHostController) {
                         completedAt = doc.getString("completedAt") ?: ""
                     )
                 } ?: emptyList()
+
+                if (!openTaskId.isNullOrEmpty() && openType == "completed") {
+                    scrollIndex = tasks.indexOfFirst { it.id == openTaskId }
+                }
             }
+    }
+
+    LaunchedEffect(scrollIndex) {
+        if (scrollIndex >= 0) {
+            listState.animateScrollToItem(scrollIndex)
+            scrollIndex = -1
+        }
     }
 
     Scaffold(
@@ -74,8 +93,9 @@ fun CompletedTaskScreen(nav: NavHostController) {
         LazyColumn(
             modifier = Modifier
                 .padding(pad)
-                .padding(16.dp)
-                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .fillMaxSize(),
+            state = listState
         ) {
             items(tasks) { t ->
 
@@ -83,18 +103,17 @@ fun CompletedTaskScreen(nav: NavHostController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 6.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (flashId == t.id)
+                            MaterialTheme.colorScheme.secondaryContainer
+                        else
+                            MaterialTheme.colorScheme.surface
+                    ),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
-
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .background(
-                                if (flashId == t.id)
-                                    MaterialTheme.colorScheme.secondaryContainer
-                                else
-                                    MaterialTheme.colorScheme.surface
-                            )
                             .padding(16.dp)
                     ) {
                         Text(t.title, style = MaterialTheme.typography.titleMedium)

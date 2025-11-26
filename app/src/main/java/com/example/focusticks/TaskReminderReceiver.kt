@@ -6,8 +6,15 @@ import android.content.Intent
 
 class TaskReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+
+        val taskId = intent.getStringExtra("taskId") ?: return
         val title = intent.getStringExtra("title") ?: "Task Reminder"
-        val taskId = intent.getStringExtra("taskId") ?: ""
-        NotificationHelper.showReminderNotification(context, title, taskId)
+
+        NotificationHelper.showReminderNotification(
+            context,
+            "Reminder: $title",
+            taskId,
+            "reminder"
+        )
     }
 }

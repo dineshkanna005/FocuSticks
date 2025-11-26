@@ -14,6 +14,7 @@ import androidx.navigation.NavHostController
 
 @Composable
 fun BottomBar(nav: NavHostController, route: String?) {
+
     NavigationBar {
 
         NavigationBarItem(
@@ -21,13 +22,13 @@ fun BottomBar(nav: NavHostController, route: String?) {
             onClick = {
                 if (route != "task") {
                     nav.navigate("task") {
-                        popUpTo("task") { inclusive = false }
+                        popUpTo("dashboard") { inclusive = false }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
             },
-            icon = { Icon(Icons.Outlined.Task, contentDescription = null) },
+            icon = { Icon(Icons.Outlined.Task, null) },
             label = { Text("Task") }
         )
 
@@ -36,28 +37,30 @@ fun BottomBar(nav: NavHostController, route: String?) {
             onClick = {
                 if (route != "leaderboard") {
                     nav.navigate("leaderboard") {
-                        popUpTo("leaderboard") { inclusive = false }
+                        popUpTo("dashboard") { inclusive = false }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
             },
-            icon = { Icon(Icons.Outlined.Leaderboard, contentDescription = null) },
+            icon = { Icon(Icons.Outlined.Leaderboard, null) },
             label = { Text("Leaderboard") }
         )
 
         NavigationBarItem(
-            selected = route == "discussion",
+            selected = route == "discussion" ||
+                    route == "discussions" ||
+                    route?.startsWith("comments/") == true,
             onClick = {
                 if (route != "discussion") {
                     nav.navigate("discussion") {
-                        popUpTo("discussion") { inclusive = false }
+                        popUpTo("dashboard") { inclusive = false }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
             },
-            icon = { Icon(Icons.Outlined.Chat, contentDescription = null) },
+            icon = { Icon(Icons.Outlined.Chat, null) },
             label = { Text("Discussion") }
         )
 
@@ -66,13 +69,13 @@ fun BottomBar(nav: NavHostController, route: String?) {
             onClick = {
                 if (route != "profile") {
                     nav.navigate("profile") {
-                        popUpTo("profile") { inclusive = false }
+                        popUpTo("dashboard") { inclusive = false }
                         launchSingleTop = true
                         restoreState = true
                     }
                 }
             },
-            icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
+            icon = { Icon(Icons.Outlined.Person, null) },
             label = { Text("Profile") }
         )
     }

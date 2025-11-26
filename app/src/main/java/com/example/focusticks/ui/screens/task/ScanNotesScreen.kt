@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.ai.GeminiApi
-import com.example.focusticks.scheduleReminder
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
@@ -109,10 +108,10 @@ fun ScanNotesScreen(nav: NavHostController) {
                 Text("Processing…")
             }
 
-            if (previewBitmap != null) {
+            previewBitmap?.let {
                 Spacer(Modifier.height(20.dp))
                 Image(
-                    bitmap = previewBitmap!!.asImageBitmap(),
+                    bitmap = it.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -239,7 +238,7 @@ suspend fun loadBitmapFromUri(context: android.content.Context, uri: Uri): Bitma
         try {
             val stream: InputStream? = context.contentResolver.openInputStream(uri)
             android.graphics.BitmapFactory.decodeStream(stream)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }

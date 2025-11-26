@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,148 +18,184 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.Timestamp
+import java.util.UUID
 
-data class Comment(
+data class DescriptionItem(
     val id: String = "",
-    val text: String = ""
+    val text: String = "",
+    val uid: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscussionScreen(nav: NavHostController) {
 
-    val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
-    val ref = db.collection("discussion").document(uid)
+    val uid = Firebase.auth.currentUser?.uid ?: ""
+    var descriptions by remember { mutableStateOf(listOf<DescriptionItem>()) }
+    var newDescription by remember { mutableStateOf("") }
+    var editTarget by remember { mutableStateOf<DescriptionItem?>(null) }
 
-    var description by remember { mutableStateOf("") }
-    var comments by remember { mutableStateOf(listOf<Comment>()) }
-    var newComment by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        db.collection("discussion")
+            .addSnapshotListener { snap, _ ->
+                descriptions = snap?.documents?.map { d ->
+                    DescriptionItem(
+                        id = d.id,
+                        text = d.getString("description") ?: "",
+                        uid = d.getString("uid") ?: ""
+                    )
+                } ?: emptyList()
+            }
+    }
 
-    LaunchedEffect(uid) {
-        ref.addSnapshotListener { snap, _ ->
-            description = snap?.getString("description") ?: ""
-            comments = snap?.get("comments")?.let { list ->
-                (list as List<Map<String, String>>).map {
-                    Comment(it["id"] ?: "", it["text"] ?: "")
-                }
-            } ?: emptyList()
-        }
+    fun saveDescription() {
+        if (newDescription.isBlank()) return
+        val id = UUID.randomUUID().toString()
+        db.collection("discussion").document(id)
+            .set(
+                mapOf(
+                    "description" to newDescription.trim(),
+                    "uid" to uid,
+                    "timestamp" to Timestamp.now()
+                ),
+                SetOptions.merge()
+            )
+        newDescription = ""
+    }
+
+    fun updateDescription() {
+        val target = editTarget ?: return
+        db.collection("discussion").document(target.id)
+            .set(
+                mapOf(
+                    "description" to newDescription.trim(),
+                    "uid" to target.uid
+                ),
+                SetOptions.merge()
+            )
+        newDescription = ""
+        editTarget = null
+    }
+
+    fun deleteDescription(id: String) {
+        db.collection("discussion").document(id).delete()
     }
 
     Scaffold(
         topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = null)
-                }
-                Text("Discussion", style = MaterialTheme.typography.headlineMedium)
-            }
+            TopAppBar(
+                title = { Text("Discussion") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFEDE7F6)
+                )
+            )
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .padding(16.dp)
+            Modifier
+                .padding(pad)
                 .fillMaxSize()
         ) {
 
-            Text("Description", style = MaterialTheme.typography.titleMedium)
-
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Button(
-                onClick = {
-                    ref.set(
-                        mapOf("description" to description),
-                        SetOptions.merge()
-                    )
-                },
-                modifier = Modifier.padding(top = 8.dp)
+            Column(
+                Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth()
             ) {
-                Text("Save Description")
-            }
-
-            Spacer(Modifier.height(20.dp))
-
-            Text("Comments", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.height(10.dp))
-
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(comments) { c ->
-                    CommentCard(
-                        comment = c,
-                        onDelete = {
-                            ref.update(
-                                "comments",
-                                FieldValue.arrayRemove(
-                                    mapOf("id" to c.id, "text" to c.text)
-                                )
-                            )
-                        }
-                    )
-                    Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = newDescription,
+                    onValueChange = { newDescription = it },
+                    placeholder = { Text("Add Description") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 100.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (editTarget == null) saveDescription() else updateDescription()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                ) {
+                    Text(if (editTarget == null) "Save" else "Update")
                 }
             }
 
-            Text("Add a comment", style = MaterialTheme.typography.bodyMedium)
-
-            OutlinedTextField(
-                value = newComment,
-                onValueChange = { newComment = it },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Button(
-                onClick = {
-                    if (newComment.isNotBlank()) {
-                        val commentObj = mapOf(
-                            "id" to System.currentTimeMillis().toString(),
-                            "text" to newComment.trim()
-                        )
-                        ref.update("comments", FieldValue.arrayUnion(commentObj))
-                        newComment = ""
-                    }
-                },
-                modifier = Modifier.padding(top = 8.dp)
+            LazyColumn(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxSize()
             ) {
-                Text("Post")
-            }
-        }
-    }
-}
+                items(descriptions) { item ->
 
-@Composable
-fun CommentCard(comment: Comment, onDelete: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(3.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = comment.text,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(item.text)
+
+                            Spacer(Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Filled.Edit,
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clickable {
+                                            newDescription = item.text
+                                            editTarget = item
+                                        }
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    contentDescription = null,
+                                    tint = Color.Red,
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clickable {
+                                            deleteDescription(item.id)
+                                        }
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Icon(
+                                    Icons.Filled.Chat,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1976D2),
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clickable {
+                                            nav.navigate("comments/${item.id}")
+                                        }
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

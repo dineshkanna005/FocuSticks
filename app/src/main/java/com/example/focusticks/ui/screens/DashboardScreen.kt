@@ -99,7 +99,7 @@ fun DashboardScreen(nav: NavHostController) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { nav.navigate("discussion") }
+                    .clickable { nav.navigate("topics") }
             ) {
                 Row(
                     modifier = Modifier.padding(20.dp),
