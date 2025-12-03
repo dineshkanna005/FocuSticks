@@ -133,7 +133,7 @@ fun SignupScreen(nav: NavHostController) {
                                         "dob" to dob,
                                         "name" to "",
                                         "studentId" to "",
-                                        "phone" to "",
+                                        "phoneNo" to "",
                                         "points" to 0,
                                         "streakDays" to 0,
                                         "lastActiveDate" to ""

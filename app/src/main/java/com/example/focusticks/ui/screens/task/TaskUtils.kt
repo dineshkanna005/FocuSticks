@@ -11,20 +11,22 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 fun parseDueMillis(input: String): Long? {
+
     val formats = listOf(
-        "MM/dd/yyyy HH:mm",
         "MM/dd/yyyy hh:mm a",
-        "MM/dd/yyyy",
-        "MM/dd/yyyy HH:mm:ss"
+        "MM/dd/yyyy HH:mm",
+        "MM/dd/yyyy"
     )
-    for (f in formats) {
+
+    for (pattern in formats) {
         try {
-            val sdf = SimpleDateFormat(f, Locale.US)
+            val sdf = SimpleDateFormat(pattern, Locale.US)
             sdf.isLenient = false
-            val d = sdf.parse(input)
-            if (d != null) return d.time
-        } catch (_: Exception) {}
+            val date = sdf.parse(input)
+            if (date != null) return date.time
+        } catch (_: Exception) { }
     }
+
     return null
 }
 

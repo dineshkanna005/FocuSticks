@@ -22,9 +22,5 @@ fun calculateStreak(lastTaskCompleted: Long): Int {
     val diffInMillis = now.timeInMillis - lastCompleted.timeInMillis
     val days = TimeUnit.MILLISECONDS.toDays(diffInMillis)
 
-    return when {
-        days == 0L -> 1
-        days == 1L -> 1
-        else -> 0
-    }
+    return if (days == 0L) 1 else 0
 }

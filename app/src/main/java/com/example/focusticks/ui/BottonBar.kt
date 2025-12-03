@@ -37,9 +37,8 @@ fun BottomBar(nav: NavHostController, route: String?) {
             onClick = {
                 if (route != "leaderboard") {
                     nav.navigate("leaderboard") {
-                        popUpTo("dashboard") { inclusive = false }
+                        popUpTo(0)
                         launchSingleTop = true
-                        restoreState = true
                     }
                 }
             },

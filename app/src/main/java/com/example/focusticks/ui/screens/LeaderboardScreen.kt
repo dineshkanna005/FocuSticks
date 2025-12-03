@@ -17,7 +17,6 @@ import com.example.focusticks.User
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.firestore
-import com.google.firebase.firestore.toObject
 import com.google.firebase.ktx.Firebase
 
 @Composable
@@ -33,9 +32,20 @@ fun LeaderboardScreen(nav: NavHostController) {
             .orderBy("points", Query.Direction.DESCENDING)
             .limit(20)
             .addSnapshotListener { snap, _ ->
-                leaderboard = snap?.documents?.mapNotNull { doc ->
-                    doc.toObject<User>()?.copy(uid = doc.id)
+                val list = snap?.documents?.map { doc ->
+                    User(
+                        uid = doc.id,
+                        name = doc.getString("name") ?: "",
+                        studentId = doc.getString("studentId") ?: "",
+                        phoneNo = doc.getString("phoneNo") ?: "",
+                        email = doc.getString("email") ?: "",
+                        dob = doc.getString("dob") ?: "",
+                        points = doc.getLong("points") ?: 0L,
+                        lastTaskCompleted = doc.getLong("lastTaskCompleted") ?: 0L
+                    )
                 } ?: emptyList()
+
+                leaderboard = list
                 isLoading = false
             }
     }
@@ -55,7 +65,12 @@ fun LeaderboardScreen(nav: NavHostController) {
     ) { pad ->
 
         if (isLoading) {
-            Box(Modifier.fillMaxSize().padding(pad), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(pad),
+                contentAlignment = Alignment.Center
+            ) {
                 CircularProgressIndicator()
             }
             return@Scaffold
@@ -81,7 +96,9 @@ fun LeaderboardScreen(nav: NavHostController) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer else cardColor
+                        containerColor = if (isCurrentUser)
+                            MaterialTheme.colorScheme.primaryContainer
+                        else cardColor
                     ),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
@@ -93,19 +110,31 @@ fun LeaderboardScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("$rank.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.width(30.dp))
+                            Text("$rank.", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.width(8.dp))
-                            Text(user.name.ifBlank { "Anonymous" }, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                user.name.ifBlank { "Anonymous" },
+                                style = MaterialTheme.typography.titleMedium
+                            )
                             if (isCurrentUser) {
                                 Spacer(Modifier.width(8.dp))
-                                Text("(You)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "(You)",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("${user.points} points", style = MaterialTheme.typography.bodyLarge)
                             if (rank <= 3) {
                                 Spacer(Modifier.width(8.dp))
-                                Icon(Icons.Filled.Star, contentDescription = "Top Rank", tint = MaterialTheme.colorScheme.primary)
+                                Icon(
+                                    Icons.Filled.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                             }
                         }
                     }

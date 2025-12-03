@@ -33,20 +33,28 @@ fun SmartReminderScreen(nav: NavHostController) {
             .get()
             .addOnSuccessListener { snap ->
 
-                val df = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US)
+                val df12 = SimpleDateFormat("MM/dd/yyyy hh:mm a", Locale.US)
+                val df24 = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US)
                 val now = System.currentTimeMillis()
                 val window = now + 24L * 60L * 60L * 1000L
 
-                val mapped = snap.documents.mapNotNull { doc ->
+                val items = snap.documents.mapNotNull { doc ->
                     val dueString = doc.getString("due") ?: return@mapNotNull null
-                    val dueDate = try { df.parse(dueString) } catch (_: Exception) { null } ?: return@mapNotNull null
+                    val dueDate =
+                        try { df12.parse(dueString) }
+                        catch (_: Exception) {
+                            try { df24.parse(dueString) }
+                            catch (_: Exception) { null }
+                        } ?: return@mapNotNull null
 
-                    val diff = when (doc.getString("difficulty")?.trim()?.lowercase()) {
-                        "hard", "high", "difficult" -> 3
-                        "medium", "mid" -> 2
-                        "easy", "low" -> 1
-                        else -> 0
-                    }
+                    val diffText = doc.getString("difficulty")?.lowercase()?.trim() ?: ""
+                    val diffScore =
+                        when {
+                            diffText.contains("hard") -> 3
+                            diffText.contains("medium") -> 2
+                            diffText.contains("easy") -> 1
+                            else -> 0
+                        }
 
                     Triple(
                         TaskItem(
@@ -61,14 +69,14 @@ fun SmartReminderScreen(nav: NavHostController) {
                             completedAt = ""
                         ),
                         dueDate.time,
-                        diff
+                        diffScore
                     )
                 }
 
-                val urgent = mapped.filter { it.second in now..window }
-                val hardest = urgent.maxByOrNull { it.third }
+                val urgent = items.filter { it.second in now..window }
+                val best = urgent.maxByOrNull { it.third }
 
-                hardestTask = hardest?.first
+                hardestTask = best?.first
                 loading = false
             }
     }

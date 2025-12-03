@@ -49,11 +49,7 @@ fun StreakScreen(nav: NavHostController) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.Filled.ArrowBack, null)
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { pad ->
@@ -82,12 +78,7 @@ fun StreakScreen(nav: NavHostController) {
             Card(
                 Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ),
-                elevation = CardDefaults.cardElevation(4.dp)
+                    .padding(vertical = 8.dp)
             ) {
                 Column(
                     Modifier
@@ -105,12 +96,7 @@ fun StreakScreen(nav: NavHostController) {
             Card(
                 Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-                ),
-                elevation = CardDefaults.cardElevation(4.dp)
+                    .padding(vertical = 8.dp)
             ) {
                 Column(
                     Modifier
@@ -129,8 +115,7 @@ fun StreakScreen(nav: NavHostController) {
 
             Text(
                 "Complete a task daily to maintain your streak!",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = MaterialTheme.typography.bodyMedium
             )
         }
     }
