@@ -5,18 +5,32 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.example.focusticks.ui.BottomBar
 import com.example.focusticks.ui.screens.*
 import com.example.focusticks.ui.screens.task.*
 import com.example.focusticks.ui.theme.FocuSticksTheme
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        Firebase.firestore.clearPersistence().addOnSuccessListener {
+            startApp()
+        }.addOnFailureListener {
+            startApp()
+        }
+    }
+
+    private fun startApp() {
         val openTaskId = intent.getStringExtra("openTaskId")
         val openType = intent.getStringExtra("openType")
 
@@ -69,7 +83,6 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
             composable("login") { LoginScreen(nav) }
             composable("signup") { SignupScreen(nav) }
             composable("forgot") { ForgotPasswordScreen(nav) }
-
             composable("dashboard") { DashboardScreen(nav) }
 
             composable("task") {

@@ -30,22 +30,34 @@ fun LeaderboardScreen(nav: NavHostController) {
     LaunchedEffect(Unit) {
         db.collection("users")
             .orderBy("points", Query.Direction.DESCENDING)
-            .limit(20)
-            .addSnapshotListener { snap, _ ->
-                val list = snap?.documents?.map { doc ->
+            .get()
+            .addOnSuccessListener { snap ->
+
+                leaderboard = snap.documents.map { doc ->
+
+                    val name = doc.getString("name") ?: ""
+                    val studentId = doc.getString("studentId") ?: ""
+                    val email = doc.getString("email") ?: ""
+                    val dob = doc.getString("dob") ?: ""
+                    val points = doc.getLong("points") ?: 0L
+                    val lastTaskCompleted = doc.getLong("lastTaskCompleted") ?: 0L
+                    val phoneNo = doc.getString("phoneNo") ?: doc.getString("phone") ?: ""
+
                     User(
                         uid = doc.id,
-                        name = doc.getString("name") ?: "",
-                        studentId = doc.getString("studentId") ?: "",
-                        phoneNo = doc.getString("phoneNo") ?: "",
-                        email = doc.getString("email") ?: "",
-                        dob = doc.getString("dob") ?: "",
-                        points = doc.getLong("points") ?: 0L,
-                        lastTaskCompleted = doc.getLong("lastTaskCompleted") ?: 0L
+                        name = name,
+                        studentId = studentId,
+                        phoneNo = phoneNo,
+                        email = email,
+                        dob = dob,
+                        points = points,
+                        lastTaskCompleted = lastTaskCompleted
                     )
-                } ?: emptyList()
+                }
 
-                leaderboard = list
+                isLoading = false
+            }
+            .addOnFailureListener {
                 isLoading = false
             }
     }
@@ -84,8 +96,10 @@ fun LeaderboardScreen(nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             itemsIndexed(leaderboard) { index, user ->
+
                 val rank = index + 1
                 val isCurrentUser = user.uid == currentUid
+
                 val cardColor = when (rank) {
                     1 -> Color(0xFFFFD700)
                     2 -> Color(0xFFC0C0C0)
@@ -96,12 +110,13 @@ fun LeaderboardScreen(nav: NavHostController) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isCurrentUser)
-                            MaterialTheme.colorScheme.primaryContainer
-                        else cardColor
+                        containerColor =
+                            if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer
+                            else cardColor
                     ),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -109,6 +124,7 @@ fun LeaderboardScreen(nav: NavHostController) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("$rank.", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.width(8.dp))
@@ -116,6 +132,7 @@ fun LeaderboardScreen(nav: NavHostController) {
                                 user.name.ifBlank { "Anonymous" },
                                 style = MaterialTheme.typography.titleMedium
                             )
+
                             if (isCurrentUser) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(
