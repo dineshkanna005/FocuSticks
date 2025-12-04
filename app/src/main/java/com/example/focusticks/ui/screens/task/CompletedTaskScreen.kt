@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
@@ -29,14 +30,12 @@ fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: S
     var scrollIndex by remember { mutableStateOf(-1) }
 
     LaunchedEffect(openTaskId) {
-        if (!openTaskId.isNullOrEmpty() && openType == "completed") {
-            flashId = openTaskId
-        }
+        if (!openTaskId.isNullOrEmpty() && openType == "completed") flashId = openTaskId
     }
 
     LaunchedEffect(flashId) {
         if (flashId.isNotEmpty()) {
-            kotlinx.coroutines.delay(1200)
+            kotlinx.coroutines.delay(900)
             flashId = ""
         }
     }
@@ -46,17 +45,17 @@ fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: S
             .whereEqualTo("uid", uid)
             .whereEqualTo("completed", true)
             .addSnapshotListener { snap, _ ->
-                tasks = snap?.documents?.map { doc ->
+                tasks = snap?.documents?.map { d ->
                     TaskItem(
-                        id = doc.id,
-                        title = doc.getString("title") ?: "",
-                        subject = doc.getString("subject") ?: "",
-                        category = doc.getString("category") ?: "",
-                        difficulty = doc.getString("difficulty") ?: "",
-                        due = doc.getString("due") ?: "",
-                        remindBefore = doc.getLong("remindBeforeMinutes") ?: 0L,
+                        id = d.id,
+                        title = d.getString("title") ?: "",
+                        subject = d.getString("subject") ?: "",
+                        category = d.getString("category") ?: "",
+                        difficulty = d.getString("difficulty") ?: "",
+                        due = d.getString("due") ?: "",
+                        remindBefore = d.getLong("remindBeforeMinutes") ?: 0L,
                         completed = true,
-                        completedAt = doc.getString("completedAt") ?: ""
+                        completedAt = d.getString("completedAt") ?: ""
                     )
                 } ?: emptyList()
 
@@ -75,54 +74,54 @@ fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: S
 
     Scaffold(
         topBar = {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, null)
+            TopAppBar(
+                title = { Text("Completed Tasks") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, null)
+                    }
                 }
-                Spacer(Modifier.width(8.dp))
-                Text("Completed Tasks", style = MaterialTheme.typography.headlineMedium)
-            }
+            )
         }
     ) { pad ->
 
         LazyColumn(
             modifier = Modifier
                 .padding(pad)
-                .padding(horizontal = 16.dp)
-                .fillMaxSize(),
+                .padding(horizontal = 16.dp),
             state = listState
         ) {
             items(tasks) { t ->
 
+                val highlightColor =
+                    if (flashId == t.id)
+                        MaterialTheme.colorScheme.secondaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (flashId == t.id)
-                            MaterialTheme.colorScheme.secondaryContainer
-                        else
-                            MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(4.dp)
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = highlightColor),
+                    elevation = CardDefaults.cardElevation(3.dp)
                 ) {
                     Column(
                         Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(18.dp)
                     ) {
-                        Text(t.title, style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Subject: ${t.subject}")
-                        Text("Category: ${t.category}")
-                        Text("Difficulty: ${t.difficulty}")
-                        Text("Due: ${t.due}")
-                        Text("Completed At: ${t.completedAt}")
+                        Text(
+                            t.title,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                        )
+
+                        Spacer(Modifier.height(6.dp))
+
+                        Text("Subject: ${t.subject}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Category: ${t.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Difficulty: ${t.difficulty}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Due: ${t.due}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Completed: ${t.completedAt}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                     }
                 }
             }

@@ -4,14 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import com.example.focusticks.ui.BottomBar
 import com.example.focusticks.ui.screens.*
 import com.example.focusticks.ui.screens.task.*
@@ -23,11 +20,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Firebase.firestore.clearPersistence().addOnSuccessListener {
-            startApp()
-        }.addOnFailureListener {
-            startApp()
-        }
+        Firebase.firestore.clearPersistence()
+            .addOnSuccessListener { startApp() }
+            .addOnFailureListener { startApp() }
     }
 
     private fun startApp() {
@@ -60,9 +55,8 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
 
     Scaffold(
         bottomBar = {
-            if (route !in listOf("splash", "login", "signup", "forgot")) {
+            if (route !in listOf("splash", "login", "signup", "forgot"))
                 BottomBar(nav, route)
-            }
         }
     ) { pad ->
 
@@ -85,27 +79,15 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
             composable("forgot") { ForgotPasswordScreen(nav) }
             composable("dashboard") { DashboardScreen(nav) }
 
-            composable("task") {
-                TaskScreen(nav, openTaskId, openType)
-            }
-
+            composable("task") { TaskScreen(nav, openTaskId, openType) }
             composable("addTask") { AddTaskScreen(nav) }
             composable("scanNotes") { ScanNotesScreen(nav) }
-
-            composable("task_completed") {
-                CompletedTaskScreen(nav, openTaskId, openType)
-            }
-
+            composable("task_completed") { CompletedTaskScreen(nav, openTaskId, openType) }
             composable("smartReminder") { SmartReminderScreen(nav) }
             composable("leaderboard") { LeaderboardScreen(nav) }
             composable("profile") { ProfileScreen(nav) }
             composable("streak") { StreakScreen(nav) }
             composable("discussion") { DiscussionScreen(nav) }
-
-            composable("discussion_comments/{id}") { backEntry ->
-                val id = backEntry.arguments?.getString("id") ?: ""
-                CommentScreen(nav, id)
-            }
         }
     }
 }

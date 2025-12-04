@@ -1,12 +1,14 @@
 package com.example.focusticks.ui.screens.task
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.NotificationHelper
@@ -75,7 +77,6 @@ fun SmartReminderScreen(nav: NavHostController) {
 
                 val urgent = items.filter { it.second in now..window }
                 val best = urgent.maxByOrNull { it.third }
-
                 hardestTask = best?.first
                 loading = false
             }
@@ -83,16 +84,14 @@ fun SmartReminderScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            Row(
-                Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, null)
+            TopAppBar(
+                title = { Text("Smart Reminder") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, null)
+                    }
                 }
-                Spacer(Modifier.width(8.dp))
-                Text("Smart Reminder", style = MaterialTheme.typography.headlineMedium)
-            }
+            )
         }
     ) { pad ->
 
@@ -106,11 +105,30 @@ fun SmartReminderScreen(nav: NavHostController) {
             } else if (hardestTask == null) {
                 Text("No urgent or hard tasks in the next 24 hours.")
             } else {
-                Text(hardestTask!!.title, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                Text("Difficulty: ${hardestTask!!.difficulty}")
-                Text("Due: ${hardestTask!!.due}")
-                Spacer(Modifier.height(24.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = CardDefaults.cardElevation(4.dp)
+                ) {
+                    Column(
+                        Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(
+                            hardestTask!!.title,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text("Difficulty: ${hardestTask!!.difficulty}", color = Color.Gray)
+                        Text("Due: ${hardestTask!!.due}", color = Color.Gray)
+                    }
+                }
 
                 Button(
                     onClick = {
@@ -121,7 +139,8 @@ fun SmartReminderScreen(nav: NavHostController) {
                             type = "reminder"
                         )
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Send Smart Reminder")
                 }

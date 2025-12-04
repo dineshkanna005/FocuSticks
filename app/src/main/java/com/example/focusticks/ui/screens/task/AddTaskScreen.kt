@@ -1,12 +1,13 @@
 package com.example.focusticks.ui.screens.task
 
+import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.PackageManager
-import android.Manifest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -42,81 +43,102 @@ fun AddTaskScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, null)
+            TopAppBar(
+                title = { Text("Add Task") },
+                navigationIcon = {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, null)
+                    }
                 }
-                Text("Add Task", style = MaterialTheme.typography.headlineMedium)
-            }
+            )
         }
     ) { pad ->
 
         Column(
             Modifier
                 .padding(pad)
-                .padding(16.dp)
+                .padding(20.dp)
                 .verticalScroll(rememberScrollState())
+                .fillMaxWidth()
         ) {
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Title") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(Modifier.padding(20.dp)) {
 
-            Spacer(Modifier.height(12.dp))
+                    Text("Task Details", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(16.dp))
 
-            OutlinedTextField(
-                value = subject,
-                onValueChange = { subject = it },
-                label = { Text("Subject") },
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Title") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = subject,
+                        onValueChange = { subject = it },
+                        label = { Text("Subject") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
 
-            OutlinedTextField(
-                value = difficulty,
-                onValueChange = { difficulty = it },
-                label = { Text("Difficulty") },
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = difficulty,
+                        onValueChange = { difficulty = it },
+                        label = { Text("Difficulty") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
 
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = category,
-                onValueChange = { category = it },
-                label = { Text("Category") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = due,
-                onValueChange = { due = it },
-                label = { Text("Due (MM/dd/yyyy HH:mm)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedTextField(
-                value = remind,
-                onValueChange = { remind = it },
-                label = { Text("Remind Before (minutes)") },
-                modifier = Modifier.fillMaxWidth()
-            )
+                    OutlinedTextField(
+                        value = category,
+                        onValueChange = { category = it },
+                        label = { Text("Category") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
 
             Spacer(Modifier.height(20.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Column(Modifier.padding(20.dp)) {
+
+                    Text("Timing", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = due,
+                        onValueChange = { due = it },
+                        label = { Text("Due (MM/dd/yyyy HH:mm)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = remind,
+                        onValueChange = { remind = it },
+                        label = { Text("Remind Before (minutes)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(30.dp))
 
             Button(
                 onClick = {
@@ -181,9 +203,12 @@ fun AddTaskScreen(nav: NavHostController) {
                             nav.popBackStack()
                         }
                 },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Save")
+                Text("Save Task", style = MaterialTheme.typography.titleMedium)
             }
         }
     }

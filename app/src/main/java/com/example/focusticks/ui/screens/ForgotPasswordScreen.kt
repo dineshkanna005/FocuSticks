@@ -2,12 +2,14 @@ package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -28,36 +30,50 @@ fun ForgotPasswordScreen(nav: NavHostController) {
     Scaffold(
         topBar = {
             Row(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = null)
+                    Icon(Icons.Filled.ArrowBack, null)
                 }
-                Text("Forgot Password", fontSize = 22.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Forgot Password",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
             modifier = Modifier
-                .padding(padding)
-                .padding(24.dp)
+                .padding(pad)
+                .padding(28.dp)
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             if (step == 1) {
+                Text(
+                    "Verify Your Account",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(24.dp))
+
                 OutlinedTextField(
                     value = email,
                     onValueChange = {
                         email = it
                         message = ""
                     },
-                    label = { Text("Mail ID") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Email") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -65,28 +81,41 @@ fun ForgotPasswordScreen(nav: NavHostController) {
                 OutlinedTextField(
                     value = dob,
                     onValueChange = { dob = it },
-                    label = { Text("Date of Birth") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Date of Birth (MM/DD/YYYY)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(Modifier.height(30.dp))
+                Spacer(Modifier.height(32.dp))
 
                 Button(
-                    onClick = { if (email.isNotBlank() && dob.isNotBlank()) step = 2 },
+                    onClick = {
+                        if (email.isNotBlank() && dob.isNotBlank()) step = 2
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(55.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Next")
+                    Text("Next", fontSize = 18.sp)
                 }
             }
 
             if (step == 2) {
+                Text(
+                    "Create New Password",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(24.dp))
+
                 OutlinedTextField(
                     value = newPass,
                     onValueChange = { newPass = it },
-                    label = { Text("Create Password") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("New Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(Modifier.height(16.dp))
@@ -95,10 +124,11 @@ fun ForgotPasswordScreen(nav: NavHostController) {
                     value = confirmPass,
                     onValueChange = { confirmPass = it },
                     label = { Text("Confirm Password") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(Modifier.height(30.dp))
+                Spacer(Modifier.height(32.dp))
 
                 Button(
                     onClick = {
@@ -107,13 +137,21 @@ fun ForgotPasswordScreen(nav: NavHostController) {
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(55.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Next")
+                    Text("Next", fontSize = 18.sp)
                 }
             }
 
             if (step == 3) {
+                Text(
+                    "Reset Your Password",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(24.dp))
 
                 Button(
                     onClick = {
@@ -127,15 +165,16 @@ fun ForgotPasswordScreen(nav: NavHostController) {
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(55.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
-                    Text("Send Reset Link")
+                    Text("Send Reset Link", fontSize = 18.sp)
                 }
 
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(24.dp))
 
                 Text(
-                    text = "Back to Login",
+                    "Back to Login",
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.clickable { nav.navigate("login") }
                 )
@@ -143,7 +182,11 @@ fun ForgotPasswordScreen(nav: NavHostController) {
 
             if (message.isNotEmpty()) {
                 Spacer(Modifier.height(20.dp))
-                Text(message, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    message,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 15.sp
+                )
             }
         }
     }

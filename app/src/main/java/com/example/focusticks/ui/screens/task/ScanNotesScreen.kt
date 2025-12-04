@@ -5,18 +5,20 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.ai.GeminiApi
@@ -42,31 +44,43 @@ fun ScanNotesScreen(nav: NavHostController) {
     var extractedTasks by remember { mutableStateOf(listOf<AiTaskEditable>()) }
     var loading by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var errorText by remember { mutableStateOf<String?>(null) }
 
-    val imagePicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri ->
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedImageUri = uri
         if (uri != null) {
             scope.launch {
                 loading = true
-                val bitmap = loadBitmapFromUri(ctx, uri)
-                previewBitmap = bitmap
-                if (bitmap != null) {
-                    val aiTasks = withContext(Dispatchers.IO) {
-                        GeminiApi.extractTasks(bitmap)
+                errorText = null
+                val bmp = loadBitmapFromUri(ctx, uri)
+                previewBitmap = bmp
+
+                if (bmp != null) {
+                    val tasks = withContext(Dispatchers.IO) {
+                        runCatching { GeminiApi.extractTasks(bmp) }.getOrElse { emptyList() }
                     }
-                    extractedTasks = aiTasks.map {
-                        AiTaskEditable(
-                            title = it.title,
-                            subject = it.subject,
-                            difficulty = it.difficulty,
-                            category = it.category,
-                            due = it.due,
-                            reminder = "10"
+
+                    if (tasks.isEmpty()) {
+                        extractedTasks = listOf(
+                            AiTaskEditable("", "", "", "", "", "10")
                         )
+                        errorText = "Could not detect tasks. Please fill manually."
+                    } else {
+                        extractedTasks = tasks.map {
+                            AiTaskEditable(
+                                title = it.title,
+                                subject = it.subject,
+                                difficulty = it.difficulty,
+                                category = it.category,
+                                due = it.due,
+                                reminder = "10"
+                            )
+                        }
                     }
+                } else {
+                    errorText = "Unable to read image."
                 }
+
                 loading = false
             }
         }
@@ -75,119 +89,143 @@ fun ScanNotesScreen(nav: NavHostController) {
     Scaffold(
         topBar = {
             Row(
-                modifier = Modifier
+                Modifier
                     .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer)
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { nav.popBackStack() }) {
-                    Icon(Icons.Filled.ArrowBack, null)
-                }
-                Text("Scan Notes", style = MaterialTheme.typography.headlineMedium)
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { nav.popBackStack() }
+                )
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    "Scan Notes",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                )
             }
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
-            modifier = Modifier
-                .padding(padding)
+            Modifier
+                .padding(pad)
                 .padding(20.dp)
-                .fillMaxSize()
+                .fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             Button(
-                onClick = { imagePicker.launch("image/*") },
-                modifier = Modifier.fillMaxWidth()
+                onClick = { picker.launch("image/*") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             ) {
                 Text("Choose Image")
             }
 
             if (loading) {
                 Spacer(Modifier.height(20.dp))
-                Text("Processing…")
+                CircularProgressIndicator()
+            }
+
+            errorText?.let {
+                Spacer(Modifier.height(16.dp))
+                Text(it, color = MaterialTheme.colorScheme.error)
             }
 
             previewBitmap?.let {
                 Spacer(Modifier.height(20.dp))
-                Image(
-                    bitmap = it.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(250.dp)
-                )
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Image(
+                        bitmap = it.asImageBitmap(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))
 
-            if (extractedTasks.isNotEmpty()) {
-                LazyColumn {
-                    items(extractedTasks) { t ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 6.dp)
-                        ) {
-                            Column(Modifier.padding(16.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                items(extractedTasks) { t ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
 
-                                OutlinedTextField(
-                                    value = t.title,
-                                    onValueChange = { t.title = it },
-                                    label = { Text("Title") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = t.title,
+                                onValueChange = { t.title = it },
+                                label = { Text("Title") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = t.subject,
-                                    onValueChange = { t.subject = it },
-                                    label = { Text("Subject") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = t.subject,
+                                onValueChange = { t.subject = it },
+                                label = { Text("Subject") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = t.difficulty,
-                                    onValueChange = { t.difficulty = it },
-                                    label = { Text("Difficulty") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = t.difficulty,
+                                onValueChange = { t.difficulty = it },
+                                label = { Text("Difficulty") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = t.category,
-                                    onValueChange = { t.category = it },
-                                    label = { Text("Category") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = t.category,
+                                onValueChange = { t.category = it },
+                                label = { Text("Category") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = t.due,
-                                    onValueChange = { t.due = it },
-                                    label = { Text("Due (MM/dd/yyyy HH:mm)") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = t.due,
+                                onValueChange = { t.due = it },
+                                label = { Text("Due (MM/dd/yyyy HH:mm)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(12.dp))
 
-                                OutlinedTextField(
-                                    value = t.reminder,
-                                    onValueChange = { t.reminder = it },
-                                    label = { Text("Reminder (minutes)") },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                            OutlinedTextField(
+                                value = t.reminder,
+                                onValueChange = { t.reminder = it },
+                                label = { Text("Reminder (minutes)") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
+            }
 
+            if (extractedTasks.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
-
                 Button(
                     onClick = {
                         scope.launch {
                             extractedTasks.forEach { t ->
+                                val reminder = t.reminder.toLongOrNull() ?: 10L
                                 db.collection("tasks")
                                     .add(
                                         mapOf(
@@ -197,7 +235,7 @@ fun ScanNotesScreen(nav: NavHostController) {
                                             "difficulty" to t.difficulty,
                                             "category" to t.category,
                                             "due" to t.due,
-                                            "remindBeforeMinutes" to (t.reminder.toLongOrNull() ?: 10L),
+                                            "remindBeforeMinutes" to reminder,
                                             "createdAt" to Timestamp.now(),
                                             "completed" to false
                                         )
@@ -208,14 +246,15 @@ fun ScanNotesScreen(nav: NavHostController) {
                                             doc.id,
                                             t.title,
                                             t.due,
-                                            t.reminder.toLongOrNull() ?: 10L
+                                            reminder
                                         )
                                     }
                             }
                             nav.popBackStack()
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Save All Tasks")
                 }

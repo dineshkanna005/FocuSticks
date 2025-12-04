@@ -7,19 +7,24 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Color
 
 private val LightColors = lightColorScheme(
-    primary = md_theme_light_primary,
-    onPrimary = md_theme_light_onPrimary,
-    surface = md_theme_light_surface,
-    onSurface = md_theme_light_onSurface
+    primary = BrandIndigo,
+    onPrimary = Color.White,
+    surface = LightSurface,
+    surfaceVariant = LightSurfaceVariant,
+    onSurface = LightText,
+    error = ErrorRed
 )
 
 private val DarkColors = darkColorScheme(
-    primary = md_theme_dark_primary,
-    onPrimary = md_theme_dark_onPrimary,
-    surface = md_theme_dark_surface,
-    onSurface = md_theme_dark_onSurface
+    primary = BrandIndigoDark,
+    onPrimary = Color.White,
+    surface = DarkSurface,
+    surfaceVariant = DarkSurfaceVariant,
+    onSurface = DarkText,
+    error = ErrorRed
 )
 
 @Composable
@@ -29,7 +34,6 @@ fun FocuSticksTheme(
 ) {
     val colorScheme = if (darkTheme) DarkColors else LightColors
 
-    // Paint the status bar the brand color for polish
     val view = androidx.compose.ui.platform.LocalView.current
     if (!view.isInEditMode) {
         val window = (view.context as Activity).window
@@ -38,7 +42,8 @@ fun FocuSticksTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = androidx.compose.material3.Typography(),
+        typography = Typography,
+        shapes = androidx.compose.material3.Shapes(),
         content = content
     )
 }

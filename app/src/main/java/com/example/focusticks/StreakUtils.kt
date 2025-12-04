@@ -3,24 +3,28 @@ package com.example.focusticks
 import java.util.Calendar
 import java.util.concurrent.TimeUnit
 
-fun calculateStreak(lastTaskCompleted: Long): Int {
-    if (lastTaskCompleted == 0L) return 0
+fun calculateStreak(lastCompletedMillis: Long): Int {
+    if (lastCompletedMillis == 0L) return 0
 
-    val now = Calendar.getInstance().apply { timeInMillis = System.currentTimeMillis() }
-    val lastCompleted = Calendar.getInstance().apply { timeInMillis = lastTaskCompleted }
+    val now = Calendar.getInstance()
+    val last = Calendar.getInstance().apply { timeInMillis = lastCompletedMillis }
 
     now.set(Calendar.HOUR_OF_DAY, 0)
     now.set(Calendar.MINUTE, 0)
     now.set(Calendar.SECOND, 0)
     now.set(Calendar.MILLISECOND, 0)
 
-    lastCompleted.set(Calendar.HOUR_OF_DAY, 0)
-    lastCompleted.set(Calendar.MINUTE, 0)
-    lastCompleted.set(Calendar.SECOND, 0)
-    lastCompleted.set(Calendar.MILLISECOND, 0)
+    last.set(Calendar.HOUR_OF_DAY, 0)
+    last.set(Calendar.MINUTE, 0)
+    last.set(Calendar.SECOND, 0)
+    last.set(Calendar.MILLISECOND, 0)
 
-    val diffInMillis = now.timeInMillis - lastCompleted.timeInMillis
-    val days = TimeUnit.MILLISECONDS.toDays(diffInMillis)
+    val diff = now.timeInMillis - last.timeInMillis
+    val days = TimeUnit.MILLISECONDS.toDays(diff)
 
-    return if (days == 0L) 1 else 0
+    return when (days) {
+        0L -> 1
+        1L -> 2
+        else -> 0
+    }
 }

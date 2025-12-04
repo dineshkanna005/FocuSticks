@@ -11,22 +11,17 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 fun parseDueMillis(input: String): Long? {
-
-    val formats = listOf(
+    val patterns = listOf(
         "MM/dd/yyyy hh:mm a",
         "MM/dd/yyyy HH:mm",
         "MM/dd/yyyy"
     )
-
-    for (pattern in formats) {
+    for (p in patterns) {
         try {
-            val sdf = SimpleDateFormat(pattern, Locale.US)
-            sdf.isLenient = false
-            val date = sdf.parse(input)
-            if (date != null) return date.time
-        } catch (_: Exception) { }
+            val d = SimpleDateFormat(p, Locale.US).apply { isLenient = false }.parse(input)
+            if (d != null) return d.time
+        } catch (_: Exception) {}
     }
-
     return null
 }
 
@@ -39,8 +34,8 @@ fun scheduleReminder(
     remindBefore: Long?
 ) {
     val dueMillis = parseDueMillis(due) ?: return
-    val before = (remindBefore ?: 0L) * 60000L
-    val trigger = dueMillis - before
+    val offset = (remindBefore ?: 0L) * 60000L
+    val trigger = dueMillis - offset
     if (trigger <= System.currentTimeMillis()) return
 
     val intent = Intent(context, TaskReminderReceiver::class.java).apply {
@@ -55,13 +50,13 @@ fun scheduleReminder(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val m = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (m.canScheduleExactAlarms()) {
-            m.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
+        if (alarm.canScheduleExactAlarms()) {
+            alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
         }
     } else {
-        m.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
+        alarm.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, trigger, pending)
     }
 }

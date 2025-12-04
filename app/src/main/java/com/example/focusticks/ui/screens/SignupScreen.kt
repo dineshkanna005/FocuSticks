@@ -1,6 +1,7 @@
 package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
@@ -9,9 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.SetOptions
@@ -36,28 +39,48 @@ fun SignupScreen(nav: NavHostController) {
     Scaffold(
         topBar = {
             Row(
-                Modifier.fillMaxWidth().padding(16.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { nav.popBackStack() }) {
                     Icon(Icons.Filled.ArrowBack, null)
                 }
                 Spacer(Modifier.width(8.dp))
-                Text("FocuSticks", style = MaterialTheme.typography.headlineSmall)
+                Text(
+                    "Create Account",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     ) { pad ->
 
         Column(
-            modifier = Modifier.fillMaxSize().padding(pad).padding(24.dp),
+            modifier = Modifier
+                .padding(pad)
+                .padding(24.dp)
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                "Let’s get you started!",
+                fontSize = 16.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(Modifier.height(28.dp))
 
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
-                label = { Text("Mail id") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
             Spacer(Modifier.height(16.dp))
@@ -65,8 +88,9 @@ fun SignupScreen(nav: NavHostController) {
             OutlinedTextField(
                 value = dob,
                 onValueChange = { dob = it },
-                label = { Text("Date of Birth MM/DD/YYYY") },
-                modifier = Modifier.fillMaxWidth()
+                label = { Text("Date of Birth (MM/DD/YYYY)") },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
             )
 
             Spacer(Modifier.height(16.dp))
@@ -84,7 +108,8 @@ fun SignupScreen(nav: NavHostController) {
                             contentDescription = null
                         )
                     }
-                }
+                },
+                shape = RoundedCornerShape(12.dp)
             )
 
             Spacer(Modifier.height(16.dp))
@@ -102,7 +127,8 @@ fun SignupScreen(nav: NavHostController) {
                             contentDescription = null
                         )
                     }
-                }
+                },
+                shape = RoundedCornerShape(12.dp)
             )
 
             Spacer(Modifier.height(30.dp))
@@ -122,15 +148,15 @@ fun SignupScreen(nav: NavHostController) {
                         return@Button
                     }
 
-                    Firebase.auth.createUserWithEmailAndPassword(email, pass)
+                    Firebase.auth.createUserWithEmailAndPassword(email.trim(), pass.trim())
                         .addOnSuccessListener { result ->
                             val uid = result.user?.uid ?: return@addOnSuccessListener
 
                             db.collection("users").document(uid)
                                 .set(
                                     mapOf(
-                                        "email" to email,
-                                        "dob" to dob,
+                                        "email" to email.trim(),
+                                        "dob" to dob.trim(),
                                         "name" to "",
                                         "studentId" to "",
                                         "phoneNo" to "",
@@ -150,9 +176,12 @@ fun SignupScreen(nav: NavHostController) {
                             error = it.message ?: "Signup failed"
                         }
                 },
-                modifier = Modifier.fillMaxWidth().height(50.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp),
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Confirm")
+                Text("Create Account", fontSize = 18.sp)
             }
 
             if (error.isNotEmpty()) {

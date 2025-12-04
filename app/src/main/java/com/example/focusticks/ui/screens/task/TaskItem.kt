@@ -1,5 +1,4 @@
 package com.example.focusticks.ui.screens.task
-
 data class TaskItem(
     val id: String = "",
     val title: String = "",
@@ -11,3 +10,4 @@ data class TaskItem(
     val completed: Boolean = false,
     val completedAt: String = ""
 )
+

@@ -10,5 +10,7 @@ data class User(
     val email: String = "",
     val dob: String = "",
     val points: Long = 0L,
-    val lastTaskCompleted: Long = 0L
+    val lastTaskCompleted: Long = 0L,
+    val streakDays: Int = 0
 )
+

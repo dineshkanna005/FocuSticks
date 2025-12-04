@@ -14,7 +14,7 @@ import androidx.core.app.NotificationManagerCompat
 
 object NotificationHelper {
 
-    private const val CHANNEL_ID = "tasks"
+    private const val CHANNEL_ID = "task_notifications"
 
     fun showReminderNotification(
         context: Context,
@@ -28,9 +28,7 @@ object NotificationHelper {
                 context,
                 Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            return
-        }
+        ) return
 
         val intent = Intent(context, MainActivity::class.java).apply {
             putExtra("openTaskId", taskId)
@@ -46,9 +44,9 @@ object NotificationHelper {
         )
 
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle(title)
-            .setContentText("Tap to view task")
+            .setContentText("Tap to open task")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -62,7 +60,7 @@ object NotificationHelper {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "Tasks",
+                "Task Reminders",
                 NotificationManager.IMPORTANCE_HIGH
             )
             val manager = context.getSystemService(NotificationManager::class.java)

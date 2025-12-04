@@ -1,21 +1,26 @@
 package com.example.focusticks.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.User
-import com.example.focusticks.calculateStreak
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.firestore.toObject
 import com.google.firebase.ktx.Firebase
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,22 +33,26 @@ fun StreakScreen(nav: NavHostController) {
     var currentStreak by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
 
+    fun calculateStreak(lastCompleted: Long): Int {
+        if (lastCompleted <= 0) return 0
+        val now = System.currentTimeMillis()
+        val diffDays =
+            TimeUnit.MILLISECONDS.toDays(now) - TimeUnit.MILLISECONDS.toDays(lastCompleted)
+        return if (diffDays == 0L) 1 else if (diffDays == 1L) 1 else 0
+    }
+
     LaunchedEffect(Unit) {
-        ref.get()
-            .addOnSuccessListener { doc ->
-                val user = doc.toObject<User>() ?: User(uid = uid)
-                totalPoints = user.points
-                currentStreak = calculateStreak(user.lastTaskCompleted)
-                loading = false
-            }
-            .addOnFailureListener {
-                loading = false
-            }
+        ref.get().addOnSuccessListener {
+            val user = it.toObject<User>() ?: User(uid = uid)
+            totalPoints = user.points
+            currentStreak = calculateStreak(user.lastTaskCompleted)
+            loading = false
+        }.addOnFailureListener { loading = false }
     }
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Streak & Points") },
                 navigationIcon = {
                     IconButton(onClick = { nav.popBackStack() }) {
@@ -56,66 +65,124 @@ fun StreakScreen(nav: NavHostController) {
 
         if (loading) {
             Box(
-                Modifier
-                    .fillMaxSize()
-                    .padding(pad),
+                Modifier.fillMaxSize().padding(pad),
                 contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator()
-            }
+            ) { CircularProgressIndicator() }
             return@Scaffold
         }
 
         Column(
-            Modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
             Card(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
-                    Modifier
+                    modifier = Modifier
                         .padding(24.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
+                    Box(
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "$currentStreak",
+                            style = MaterialTheme.typography.headlineLarge.copy(
+                                fontWeight = FontWeight.Bold
+                            ),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
                     Text(
-                        "Total Points: $totalPoints",
-                        style = MaterialTheme.typography.headlineMedium
+                        "Current Streak 🔥",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        if (currentStreak > 0) "Great job keeping your streak alive!"
+                        else "Start completing tasks to build your streak!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
+
+            Spacer(Modifier.height(24.dp))
 
             Card(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant)
             ) {
                 Column(
-                    Modifier
+                    modifier = Modifier
                         .padding(24.dp)
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
                     Text(
-                        "Current Streak: $currentStreak 🔥",
-                        style = MaterialTheme.typography.headlineMedium
+                        "$totalPoints",
+                        style = MaterialTheme.typography.headlineLarge.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        "Total Points",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(Modifier.height(4.dp))
+
+                    Text(
+                        "Earn 10 points for every completed task.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(32.dp))
 
             Text(
-                "Complete a task daily to maintain your streak!",
-                style = MaterialTheme.typography.bodyMedium
+                "Complete at least one task every day to maintain your streak!",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

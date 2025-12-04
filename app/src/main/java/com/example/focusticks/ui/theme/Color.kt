@@ -1,12 +1,16 @@
 package com.example.focusticks.ui.theme
 
 import androidx.compose.ui.graphics.Color
-val IndigoBrand = Color(0xFF4F46E5)
-val md_theme_light_primary = IndigoBrand
-val md_theme_light_onPrimary = Color.White
-val md_theme_light_surface = Color(0xFFF9FAFB)
-val md_theme_light_onSurface = Color(0xFF111827)
-val md_theme_dark_primary = IndigoBrand
-val md_theme_dark_onPrimary = Color.White
-val md_theme_dark_surface = Color(0xFF0B0F17)
-val md_theme_dark_onSurface = Color(0xFFE5E7EB)
+
+val BrandIndigo = Color(0xFF4F46E5)
+val BrandIndigoDark = Color(0xFF4338CA)
+
+val LightSurface = Color(0xFFF5F6FA)
+val LightSurfaceVariant = Color(0xFFE5E7EB)
+val LightText = Color(0xFF111827)
+
+val DarkSurface = Color(0xFF0D1117)
+val DarkSurfaceVariant = Color(0xFF1F2937)
+val DarkText = Color(0xFFE5E7EB)
+
+val ErrorRed = Color(0xFFD32F2F)

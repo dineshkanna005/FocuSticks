@@ -1,7 +1,9 @@
 package com.example.focusticks.ui.screens.task
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -10,13 +12,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.NotificationHelper
@@ -43,14 +47,12 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
     var scrollIndex by remember { mutableStateOf(-1) }
 
     LaunchedEffect(openTaskId) {
-        if (!openTaskId.isNullOrEmpty() && openType != "completed") {
-            flashId = openTaskId
-        }
+        if (!openTaskId.isNullOrEmpty() && openType != "completed") flashId = openTaskId
     }
 
     LaunchedEffect(flashId) {
         if (flashId.isNotEmpty()) {
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(900)
             flashId = ""
         }
     }
@@ -60,15 +62,15 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
             .whereEqualTo("uid", uid)
             .whereEqualTo("completed", false)
             .addSnapshotListener { snap, _ ->
-                tasks = snap?.documents?.map { doc ->
+                tasks = snap?.documents?.map { d ->
                     TaskItem(
-                        id = doc.id,
-                        title = doc.getString("title") ?: "",
-                        subject = doc.getString("subject") ?: "",
-                        category = doc.getString("category") ?: "",
-                        difficulty = doc.getString("difficulty") ?: "",
-                        due = doc.getString("due") ?: "",
-                        remindBefore = doc.getLong("remindBeforeMinutes") ?: 0L,
+                        id = d.id,
+                        title = d.getString("title") ?: "",
+                        subject = d.getString("subject") ?: "",
+                        category = d.getString("category") ?: "",
+                        difficulty = d.getString("difficulty") ?: "",
+                        due = d.getString("due") ?: "",
+                        remindBefore = d.getLong("remindBeforeMinutes") ?: 0L,
                         completed = false,
                         completedAt = ""
                     )
@@ -89,23 +91,25 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
 
     fun markTaskAsCompleted(task: TaskItem) {
         val now = System.currentTimeMillis()
-        val nowFormatted = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US).format(Date())
+        val formatted = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US).format(Date())
 
         db.collection("tasks").document(task.id)
-            .update(
-                mapOf(
-                    "completed" to true,
-                    "completedAt" to nowFormatted
-                )
-            )
+            .update(mapOf("completed" to true, "completedAt" to formatted))
             .addOnSuccessListener {
                 flashId = task.id
+
+                val todayMidnight = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
 
                 db.collection("users").document(uid)
                     .update(
                         mapOf(
                             "points" to FieldValue.increment(10L),
-                            "lastTaskCompleted" to now
+                            "lastTaskCompleted" to todayMidnight
                         )
                     )
 
@@ -120,125 +124,151 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
         cancelReminder(context, task.id)
     }
 
-    fun deleteTask(taskId: String) {
-        db.collection("tasks").document(taskId).delete()
-        cancelReminder(context, taskId)
+    fun deleteTask(id: String) {
+        db.collection("tasks").document(id).delete()
+        cancelReminder(context, id)
     }
 
-    fun saveTask(task: TaskItem) {
-        db.collection("tasks").document(task.id)
+    fun saveTask(updated: TaskItem) {
+        db.collection("tasks").document(updated.id)
             .set(
                 mapOf(
-                    "title" to task.title,
-                    "subject" to task.subject,
-                    "difficulty" to task.difficulty,
-                    "category" to task.category,
-                    "due" to task.due,
-                    "remindBeforeMinutes" to task.remindBefore,
+                    "title" to updated.title,
+                    "subject" to updated.subject,
+                    "difficulty" to updated.difficulty,
+                    "category" to updated.category,
+                    "due" to updated.due,
+                    "remindBeforeMinutes" to updated.remindBefore,
                     "completed" to false,
                     "uid" to uid
                 )
             )
 
-        val dueMillis = parseDueMillis(task.due)
-        if (dueMillis != null) {
-            scheduleReminder(context, task.id, task.title, task.due, task.remindBefore)
-        } else {
-            cancelReminder(context, task.id)
-        }
+        val dueMillis = parseDueMillis(updated.due)
+        if (dueMillis != null) scheduleReminder(context, updated.id, updated.title, updated.due, updated.remindBefore)
+        else cancelReminder(context, updated.id)
 
         selectedTask = null
     }
 
     Scaffold(
         topBar = {
-            Column {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = null,
-                        modifier = Modifier.clickable { nav.popBackStack() }
-                    )
-                    Spacer(Modifier.width(16.dp))
-                    Text("Task", style = MaterialTheme.typography.headlineMedium)
-                }
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Scan Notes", modifier = Modifier.clickable { nav.navigate("scanNotes") })
-                    Text("Smart Reminder", modifier = Modifier.clickable { nav.navigate("smartReminder") })
-                    Text("Add", modifier = Modifier.clickable { nav.navigate("addTask") })
-                    Text("Completed", modifier = Modifier.clickable { nav.navigate("task_completed") })
-                }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = null,
+                    modifier = Modifier.clickable { nav.popBackStack() },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    "Task",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                )
             }
         }
     ) { pad ->
 
-        LazyColumn(
-            modifier = Modifier
-                .padding(pad)
-                .padding(horizontal = 16.dp)
-                .fillMaxSize(),
-            state = listState
-        ) {
-            items(tasks) { t ->
+        Column(Modifier.padding(pad)) {
 
-                val dueMillis = parseDueMillis(t.due)
-                val isOverdue = dueMillis != null && System.currentTimeMillis() > dueMillis
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, shape = MaterialTheme.shapes.medium)
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Scan", Modifier.clickable { nav.navigate("scanNotes") })
+                Text("Smart Reminder", Modifier.clickable { nav.navigate("smartReminder") })
+                Text("Add", Modifier.clickable { nav.navigate("addTask") })
+                Text("Completed", Modifier.clickable { nav.navigate("task_completed") })
+            }
 
-                val animatedElevation by animateFloatAsState(
-                    targetValue = if (flashId == t.id) 8.dp.value else 4.dp.value,
-                    animationSpec = tween(300),
-                    label = ""
-                )
+            LazyColumn(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxSize(),
+                state = listState
+            ) {
+                items(tasks) { t ->
 
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 6.dp)
-                        .clickable { selectedTask = t },
-                    elevation = CardDefaults.cardElevation(animatedElevation.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = when {
-                            flashId == t.id -> MaterialTheme.colorScheme.secondaryContainer
-                            isOverdue -> MaterialTheme.colorScheme.errorContainer
-                            else -> MaterialTheme.colorScheme.surfaceVariant
-                        }
+                    val dueMillis = parseDueMillis(t.due)
+                    val overdue = dueMillis != null && System.currentTimeMillis() > dueMillis
+
+                    val elevation by animateFloatAsState(
+                        targetValue = if (flashId == t.id) 10.dp.value else 3.dp.value,
+                        animationSpec = tween(300),
+                        label = ""
                     )
-                ) {
 
-                    Row(
-                        Modifier
+                    Card(
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(vertical = 8.dp)
+                            .animateContentSize()
+                            .clickable { selectedTask = t },
+                        colors = CardDefaults.cardColors(
+                            containerColor = when {
+                                flashId == t.id -> MaterialTheme.colorScheme.secondaryContainer
+                                overdue -> MaterialTheme.colorScheme.errorContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        ),
+                        elevation = CardDefaults.cardElevation(elevation.dp)
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(t.title, style = MaterialTheme.typography.titleMedium)
-                            Spacer(Modifier.height(4.dp))
-                            Text("Subject: ${t.subject}", style = MaterialTheme.typography.bodySmall)
-                            Text("Due: ${t.due}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Row {
-                            IconButton(onClick = { markTaskAsCompleted(t) }) {
-                                Icon(Icons.Filled.Check, null)
+                        Column(Modifier.padding(18.dp)) {
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    t.title,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+
+                                Box(
+                                    Modifier
+                                        .background(
+                                            if (overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                            shape = MaterialTheme.shapes.small
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        t.due,
+                                        color = Color.White,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
                             }
-                            IconButton(onClick = { selectedTask = t }) {
-                                Icon(Icons.Filled.Edit, null)
-                            }
-                            IconButton(onClick = { deleteTask(t.id) }) {
-                                Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error)
+
+                            Spacer(Modifier.height(6.dp))
+                            Text("Subject: ${t.subject}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text("Category: ${t.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text("Difficulty: ${t.difficulty}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Spacer(Modifier.height(12.dp))
+
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                IconButton(onClick = { markTaskAsCompleted(t) }) {
+                                    Icon(Icons.Filled.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { selectedTask = t }) {
+                                    Icon(Icons.Filled.Edit, null)
+                                }
+                                IconButton(onClick = { deleteTask(t.id) }) {
+                                    Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
                     }
@@ -247,25 +277,21 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
         }
     }
 
-    selectedTask?.let { task ->
-        EditTaskDialog(
-            task = task,
-            onDismiss = { selectedTask = null },
-            onSave = ::saveTask
-        )
+    selectedTask?.let {
+        EditTaskDialog(task = it, onDismiss = { selectedTask = null }, onSave = ::saveTask)
     }
 }
 
 fun cancelReminder(context: android.content.Context, taskId: String) {
-    val alarmManager = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
+    val alarm = context.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
     val intent = android.content.Intent(context, TaskReminderReceiver::class.java).apply {
         putExtra("taskId", taskId)
     }
-    val pendingIntent = android.app.PendingIntent.getBroadcast(
+    val pending = android.app.PendingIntent.getBroadcast(
         context,
         taskId.hashCode(),
         intent,
         android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
     )
-    alarmManager.cancel(pendingIntent)
+    alarm.cancel(pending)
 }

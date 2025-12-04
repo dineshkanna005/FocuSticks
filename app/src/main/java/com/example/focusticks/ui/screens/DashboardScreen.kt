@@ -3,6 +3,7 @@ package com.example.focusticks.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Leaderboard
@@ -10,8 +11,8 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,93 +24,85 @@ fun DashboardScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Dashboard",
-                    fontSize = 28.sp,
-                    color = Color.Black
-                )
-            }
+            CenterAlignedTopAppBar(
+                title = { Text("Dashboard", fontSize = 22.sp) }
+            )
         }
-    ) { padding ->
+    ) { pad ->
 
         Column(
             modifier = Modifier
-                .padding(padding)
-                .padding(20.dp)
                 .fillMaxSize()
+                .padding(pad)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.Top,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { nav.navigate("profile") }
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Filled.Person, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Profile")
-                }
-            }
+            DashboardTile(
+                title = "Profile",
+                icon = Icons.Filled.Person,
+                onClick = { nav.navigate("profile") }
+            )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { nav.navigate("task") }
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Filled.TaskAlt, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Task")
-                }
-            }
+            DashboardTile(
+                title = "Tasks",
+                icon = Icons.Filled.TaskAlt,
+                onClick = { nav.navigate("task") }
+            )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { nav.navigate("leaderboard") }
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Filled.Leaderboard, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Leaderboard")
-                }
-            }
+            DashboardTile(
+                title = "Leaderboard",
+                icon = Icons.Filled.Leaderboard,
+                onClick = { nav.navigate("leaderboard") }
+            )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { nav.navigate("topics") }
-            ) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Filled.Chat, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    Text("Discussion")
-                }
-            }
+            DashboardTile(
+                title = "Discussion",
+                icon = Icons.Filled.Chat,
+                onClick = { nav.navigate("discussion") }
+            )
+        }
+    }
+}
+
+@Composable
+fun DashboardTile(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(95.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(6.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+
+            Spacer(Modifier.width(20.dp))
+
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge
+            )
         }
     }
 }

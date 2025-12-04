@@ -1,6 +1,7 @@
 package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -14,32 +15,41 @@ import com.google.firebase.ktx.Firebase
 @Composable
 fun SplashScreen(onDone: (String) -> Unit) {
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(32.dp),
+        contentAlignment = Alignment.Center
     ) {
 
-        Text(
-            text = "FocuSticks",
-            fontSize = 36.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(Modifier.height(40.dp))
-
-        Button(
-            onClick = {
-                val user = Firebase.auth.currentUser
-                if (user != null) onDone("dashboard") else onDone("login")
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(55.dp)
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Get Started")
+
+            Text(
+                text = "FocuSticks",
+                fontSize = 42.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(Modifier.height(60.dp))
+
+            Button(
+                onClick = {
+                    val user = Firebase.auth.currentUser
+                    if (user != null) onDone("dashboard") else onDone("login")
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(55.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "Get Started",
+                    fontSize = 18.sp
+                )
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -9,14 +10,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.SetOptions
-import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
 @Composable
@@ -27,19 +27,30 @@ fun LoginScreen(nav: NavHostController) {
     var error by remember { mutableStateOf("") }
     var showPw by remember { mutableStateOf(false) }
 
-    val db = Firebase.firestore
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
 
-        Spacer(Modifier.height(40.dp))
+        Spacer(Modifier.height(60.dp))
 
-        Text("FocuSticks", fontSize = 32.sp)
+        Text(
+            text = "Welcome Back",
+            fontSize = 32.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+
+        Spacer(Modifier.height(6.dp))
+
+        Text(
+            text = "Login to continue",
+            fontSize = 16.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Spacer(Modifier.height(40.dp))
 
@@ -50,7 +61,8 @@ fun LoginScreen(nav: NavHostController) {
                 error = ""
             },
             label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
         )
 
         Spacer(Modifier.height(16.dp))
@@ -71,18 +83,20 @@ fun LoginScreen(nav: NavHostController) {
                     )
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(10.dp))
 
         Text(
-            "Forgot Password",
+            "Forgot Password?",
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.clickable { nav.navigate("forgot") }
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(28.dp))
+
         Button(
             onClick = {
                 Firebase.auth.signInWithEmailAndPassword(email.trim(), password.trim())
@@ -95,17 +109,25 @@ fun LoginScreen(nav: NavHostController) {
                         error = "Invalid email or password"
                     }
             },
-            modifier = Modifier.fillMaxWidth().height(50.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(55.dp),
+            shape = RoundedCornerShape(14.dp)
         ) {
-            Text("Confirm", fontSize = 16.sp)
+            Text("Login", fontSize = 18.sp)
         }
-        Spacer(Modifier.height(12.dp))
 
-        Text(
-            "Sign Up",
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { nav.navigate("signup") }
-        )
+        Spacer(Modifier.height(16.dp))
+
+        Row {
+            Text("Don't have an account?")
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Sign Up",
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { nav.navigate("signup") }
+            )
+        }
 
         if (error.isNotEmpty()) {
             Spacer(Modifier.height(20.dp))
