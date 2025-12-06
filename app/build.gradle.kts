@@ -69,7 +69,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-text")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.compose.animation:animation:1.6.0")
-
+    implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     implementation("com.google.mlkit:text-recognition:16.0.0")
@@ -78,6 +78,7 @@ dependencies {
     implementation(firebaseBom)
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation ("com.google.firebase:firebase-storage-ktx")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

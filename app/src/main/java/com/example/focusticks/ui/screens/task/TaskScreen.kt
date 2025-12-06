@@ -9,11 +9,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,16 +22,21 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.focusticks.NotificationHelper
 import com.example.focusticks.TaskReminderReceiver
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Menu
 import com.google.firebase.auth.ktx.auth
-import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
+fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
@@ -98,27 +100,34 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
             .addOnSuccessListener {
                 flashId = task.id
 
-                val todayMidnight = Calendar.getInstance().apply {
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
+                db.collection("users").document(uid).get().addOnSuccessListener { snap ->
+                    val user = snap.toObject(com.example.focusticks.User::class.java) ?: return@addOnSuccessListener
+                    val last = user.lastTaskCompleted
+                    val streak = user.streakDays
+                    val lastDay = TimeUnit.MILLISECONDS.toDays(last)
+                    val todayDay = TimeUnit.MILLISECONDS.toDays(now)
+                    val newStreak =
+                        if (last == 0L) 1
+                        else if (todayDay == lastDay) streak
+                        else if (todayDay - lastDay == 1L) streak + 1
+                        else 1
 
-                db.collection("users").document(uid)
-                    .update(
-                        mapOf(
-                            "points" to FieldValue.increment(10L),
-                            "lastTaskCompleted" to todayMidnight
+                    db.collection("users").document(uid)
+                        .update(
+                            mapOf(
+                                "points" to user.points + 10,
+                                "lastTaskCompleted" to now,
+                                "streakDays" to newStreak
+                            )
                         )
-                    )
 
-                NotificationHelper.showReminderNotification(
-                    context,
-                    "Task Completed: ${task.title}",
-                    task.id,
-                    "completed"
-                )
+                    NotificationHelper.showReminderNotification(
+                        context,
+                        "Task Completed: ${task.title}",
+                        task.id,
+                        "completed"
+                    )
+                }
             }
 
         cancelReminder(context, task.id)
@@ -156,19 +165,23 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                    Text("Task", style = MaterialTheme.typography.headlineSmall)
+                }
+
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.clickable { nav.popBackStack() },
+                    Icons.Filled.Menu,
+                    "",
+                    modifier = Modifier.clickable { openDrawer() },
                     tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    "Task",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
         }
@@ -251,9 +264,9 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
                             }
 
                             Spacer(Modifier.height(6.dp))
-                            Text("Subject: ${t.subject}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                            Text("Category: ${t.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                            Text("Difficulty: ${t.difficulty}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            Text("Subject: ${t.subject}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Category: ${t.category}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Difficulty: ${t.difficulty}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
                             Spacer(Modifier.height(12.dp))
 
                             Row(

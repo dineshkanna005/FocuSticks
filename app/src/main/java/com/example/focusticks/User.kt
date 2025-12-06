@@ -13,4 +13,3 @@ data class User(
     val lastTaskCompleted: Long = 0L,
     val streakDays: Int = 0
 )
-

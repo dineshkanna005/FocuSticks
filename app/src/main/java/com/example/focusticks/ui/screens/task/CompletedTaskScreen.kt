@@ -1,11 +1,13 @@
 package com.example.focusticks.ui.screens.task
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -19,7 +21,7 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: String?) {
+fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
@@ -74,14 +76,26 @@ fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: S
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Completed Tasks") },
-                navigationIcon = {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
+                    Text("Completed Tasks", style = MaterialTheme.typography.titleLarge)
                 }
-            )
+                Icon(
+                    Icons.Filled.Menu,
+                    null,
+                    modifier = Modifier.clickable { openDrawer() },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     ) { pad ->
 
@@ -107,21 +121,20 @@ fun CompletedTaskScreen(nav: NavHostController, openTaskId: String?, openType: S
                     elevation = CardDefaults.cardElevation(3.dp)
                 ) {
                     Column(
-                        Modifier
-                            .padding(18.dp)
+                        Modifier.padding(18.dp)
                     ) {
                         Text(
                             t.title,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                            style = MaterialTheme.typography.titleMedium
                         )
 
                         Spacer(Modifier.height(6.dp))
 
-                        Text("Subject: ${t.subject}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text("Category: ${t.category}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text("Difficulty: ${t.difficulty}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text("Due: ${t.due}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                        Text("Completed: ${t.completedAt}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        Text("Subject: ${t.subject}", color = Color.Gray)
+                        Text("Category: ${t.category}", color = Color.Gray)
+                        Text("Difficulty: ${t.difficulty}", color = Color.Gray)
+                        Text("Due: ${t.due}", color = Color.Gray)
+                        Text("Completed: ${t.completedAt}", color = Color.Gray)
                     }
                 }
             }

@@ -5,7 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,7 +25,7 @@ import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StreakScreen(nav: NavHostController) {
+fun StreakScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val ref = Firebase.firestore.collection("users").document(uid)
@@ -33,33 +34,48 @@ fun StreakScreen(nav: NavHostController) {
     var currentStreak by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
 
-    fun calculateStreak(lastCompleted: Long): Int {
-        if (lastCompleted <= 0) return 0
-        val now = System.currentTimeMillis()
-        val diffDays =
-            TimeUnit.MILLISECONDS.toDays(now) - TimeUnit.MILLISECONDS.toDays(lastCompleted)
-        return if (diffDays == 0L) 1 else if (diffDays == 1L) 1 else 0
-    }
-
     LaunchedEffect(Unit) {
         ref.get().addOnSuccessListener {
             val user = it.toObject<User>() ?: User(uid = uid)
+
+            val last = user.lastTaskCompleted
+            val streak = user.streakDays
+            val now = System.currentTimeMillis()
+
+            val lastDay = TimeUnit.MILLISECONDS.toDays(last)
+            val todayDay = TimeUnit.MILLISECONDS.toDays(now)
+
+            val display =
+                if (last == 0L) 0
+                else if (todayDay == lastDay) streak
+                else if (todayDay - lastDay == 1L) streak
+                else 0
+
+            currentStreak = display
             totalPoints = user.points
-            currentStreak = calculateStreak(user.lastTaskCompleted)
             loading = false
         }.addOnFailureListener { loading = false }
     }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Streak & Points") },
-                navigationIcon = {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
+                    Text("Streak", style = MaterialTheme.typography.headlineSmall)
                 }
-            )
+                IconButton(onClick = { openDrawer() }) {
+                    Icon(Icons.Filled.Menu, null)
+                }
+            }
         }
     ) { pad ->
 
@@ -90,7 +106,6 @@ fun StreakScreen(nav: NavHostController) {
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
                     Box(
                         modifier = Modifier
                             .size(90.dp)
@@ -100,9 +115,7 @@ fun StreakScreen(nav: NavHostController) {
                     ) {
                         Text(
                             "$currentStreak",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontWeight = FontWeight.Bold
-                            ),
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                             textAlign = TextAlign.Center
                         )
                     }
@@ -146,9 +159,7 @@ fun StreakScreen(nav: NavHostController) {
 
                     Text(
                         "$totalPoints",
-                        style = MaterialTheme.typography.headlineLarge.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
+                        style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
                     )

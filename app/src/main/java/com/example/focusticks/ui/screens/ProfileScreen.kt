@@ -8,7 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,16 +29,16 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreen(nav: NavHostController) {
+fun ProfileScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val auth = Firebase.auth
     val uid = auth.currentUser?.uid ?: return
     val dbRef = Firebase.firestore.collection("users").document(uid)
 
     var name by remember { mutableStateOf("") }
-    val email by remember { mutableStateOf(auth.currentUser?.email ?: "N/A") }
     var studentId by remember { mutableStateOf("") }
     var phoneNo by remember { mutableStateOf("") }
+    val email by remember { mutableStateOf(auth.currentUser?.email ?: "N/A") }
     var points by remember { mutableStateOf(0L) }
     var lastTaskCompleted by remember { mutableStateOf(0L) }
 
@@ -46,12 +47,12 @@ fun ProfileScreen(nav: NavHostController) {
 
     LaunchedEffect(Unit) {
         dbRef.get().addOnSuccessListener {
-            val user = it.toObject<User>() ?: User(uid = uid)
-            name = user.name
-            studentId = user.studentId
-            phoneNo = user.phoneNo
-            points = user.points
-            lastTaskCompleted = user.lastTaskCompleted
+            val u = it.toObject<User>() ?: User(uid = uid)
+            name = u.name
+            studentId = u.studentId
+            phoneNo = u.phoneNo
+            points = u.points
+            lastTaskCompleted = u.lastTaskCompleted
             isLoading = false
         }.addOnFailureListener { isLoading = false }
     }
@@ -72,52 +73,38 @@ fun ProfileScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Profile") },
-                navigationIcon = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
-                },
-                actions = {
-                    Text(
-                        if (isEditing) "Save" else "Edit",
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .padding(end = 16.dp)
-                            .clickable {
-                                if (isEditing) saveProfile() else isEditing = true
-                            },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Text(
-                        "Logout",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier
-                            .padding(end = 16.dp)
-                            .clickable {
-                                auth.signOut()
-                                nav.navigate("login") {
-                                    popUpTo("dashboard") { inclusive = true }
-                                }
-                            },
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text("Profile", style = MaterialTheme.typography.headlineSmall)
                 }
-            )
+                IconButton(onClick = { openDrawer() }) {
+                    Icon(Icons.Filled.Menu, null)
+                }
+            }
         }
     ) { pad ->
 
         if (isLoading) {
             Box(
-                Modifier.fillMaxSize().padding(pad),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(pad),
                 contentAlignment = Alignment.Center
             ) { CircularProgressIndicator() }
             return@Scaffold
         }
 
         Column(
-            Modifier
+            modifier = Modifier
                 .padding(pad)
                 .padding(20.dp)
                 .fillMaxSize()
@@ -140,18 +127,32 @@ fun ProfileScreen(nav: NavHostController) {
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
+                            .size(90.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             initials,
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold)
                         )
                     }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        if (isEditing) "Save" else "Edit",
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable {
+                                if (isEditing) saveProfile() else isEditing = true
+                            }
+                            .padding(6.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
 
                     Spacer(Modifier.height(12.dp))
 
@@ -212,17 +213,19 @@ fun ProfileScreen(nav: NavHostController) {
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(20.dp))
 
             Button(
                 onClick = { nav.navigate("streak") },
                 shape = RoundedCornerShape(20.dp),
-                modifier = Modifier.width(180.dp).height(48.dp)
+                modifier = Modifier
+                    .width(180.dp)
+                    .height(48.dp)
             ) {
                 Text("View Streaks", color = Color.White)
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
 }

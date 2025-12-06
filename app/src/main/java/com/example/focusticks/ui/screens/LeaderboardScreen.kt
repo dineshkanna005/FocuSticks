@@ -1,12 +1,12 @@
 package com.example.focusticks.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,7 +14,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -26,7 +25,7 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LeaderboardScreen(nav: NavHostController) {
+fun LeaderboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val db = Firebase.firestore
     val currentUid = Firebase.auth.currentUser?.uid
@@ -60,20 +59,21 @@ fun LeaderboardScreen(nav: NavHostController) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.clickable { nav.popBackStack() },
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    "Leaderboard",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                    Text("Leaderboard", style = MaterialTheme.typography.headlineSmall)
+                }
+
+                IconButton(onClick = { openDrawer() }) {
+                    Icon(Icons.Filled.Menu, null)
+                }
             }
         }
     ) { pad ->
@@ -108,9 +108,9 @@ fun LeaderboardScreen(nav: NavHostController) {
                     else -> MaterialTheme.colorScheme.surfaceVariant
                 }
 
-                val container = if (isCurrentUser)
-                    MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surface
+                val container =
+                    if (isCurrentUser) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surface
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -125,6 +125,7 @@ fun LeaderboardScreen(nav: NavHostController) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
@@ -134,12 +135,15 @@ fun LeaderboardScreen(nav: NavHostController) {
                             ) {
                                 Text(rank.toString(), fontSize = 18.sp)
                             }
+
                             Spacer(Modifier.width(12.dp))
+
                             Text(
                                 user.name.ifBlank { "Anonymous" },
                                 fontSize = 18.sp,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
+
                             if (isCurrentUser) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,7 +25,7 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiscussionScreen(nav: NavHostController) {
+fun DiscussionScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val db = Firebase.firestore
     val uid = Firebase.auth.currentUser?.uid ?: ""
@@ -47,8 +48,8 @@ fun DiscussionScreen(nav: NavHostController) {
         db.collection("discussion")
             .orderBy("timestamp")
             .addSnapshotListener { snap, _ ->
-                descriptions = snap?.documents?.mapNotNull { d ->
-                    d.toObject(DiscussionItem::class.java)?.copy(id = d.id)
+                descriptions = snap?.documents?.mapNotNull {
+                    it.toObject(DiscussionItem::class.java)?.copy(id = it.id)
                 } ?: emptyList()
             }
     }
@@ -59,15 +60,14 @@ fun DiscussionScreen(nav: NavHostController) {
             .collection("comments")
             .orderBy("timestamp")
             .addSnapshotListener { snap, _ ->
-                comments = snap?.documents?.mapNotNull { d ->
-                    d.toObject(DiscussionItem::class.java)?.copy(id = d.id)
+                comments = snap?.documents?.mapNotNull {
+                    it.toObject(DiscussionItem::class.java)?.copy(id = it.id)
                 } ?: emptyList()
             }
     }
 
     fun saveDescription() {
         if (inputDesc.isBlank()) return
-
         if (editDescMode && editingDescId != null) {
             db.collection("discussion").document(editingDescId!!)
                 .update(mapOf("text" to inputDesc.trim()))
@@ -95,19 +95,16 @@ fun DiscussionScreen(nav: NavHostController) {
 
     fun saveComment() {
         if (inputComment.isBlank() || selectedDescId.isNullOrEmpty()) return
-
         if (editCommentMode && editingCommentId != null) {
             db.collection("discussion").document(selectedDescId!!)
                 .collection("comments").document(editingCommentId!!)
                 .update(mapOf("text" to inputComment.trim()))
-
             editCommentMode = false
             editingCommentId = null
             inputComment = ""
             replyTo = null
             return
         }
-
         db.collection("users").document(uid).get().addOnSuccessListener { u ->
             val name = u.getString("name") ?: "User"
             val newComment = DiscussionItem(
@@ -133,24 +130,18 @@ fun DiscussionScreen(nav: NavHostController) {
     @Composable
     fun RenderComment(item: DiscussionItem, depth: Int) {
         val replies = comments.filter { it.replyToId == item.id }
-
-        Column(
-            Modifier.padding(start = (depth * 20).dp, top = 8.dp)
-        ) {
-
+        Column(Modifier.padding(start = (depth * 20).dp, top = 8.dp)) {
             Card(
                 Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5))
             ) {
                 Column(Modifier.padding(12.dp)) {
-
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(item.userName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-
                         if (item.uid == uid) {
                             Row {
                                 Text(
@@ -173,13 +164,9 @@ fun DiscussionScreen(nav: NavHostController) {
                             }
                         }
                     }
-
                     Spacer(Modifier.height(4.dp))
-
                     Text(item.text, fontSize = 14.sp)
-
                     Spacer(Modifier.height(6.dp))
-
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End
@@ -197,7 +184,6 @@ fun DiscussionScreen(nav: NavHostController) {
                     }
                 }
             }
-
             replies.forEach { RenderComment(it, depth + 1) }
         }
     }
@@ -207,26 +193,30 @@ fun DiscussionScreen(nav: NavHostController) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    modifier = Modifier.clickable { nav.popBackStack() },
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    text = "Discussion",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                    Text("Discussion", style = MaterialTheme.typography.headlineSmall)
+                }
+
+                IconButton(onClick = { openDrawer() }) {
+                    Icon(Icons.Filled.Menu, null)
+                }
             }
         }
     ) { pad ->
 
         Column(
-            Modifier.padding(pad).padding(16.dp).fillMaxSize()
+            Modifier
+                .padding(pad)
+                .padding(16.dp)
+                .fillMaxSize()
         ) {
 
             OutlinedTextField(
@@ -241,7 +231,9 @@ fun DiscussionScreen(nav: NavHostController) {
 
             Button(
                 onClick = { saveDescription() },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(if (editDescMode) "Update" else "Save", fontSize = 16.sp)
@@ -251,20 +243,23 @@ fun DiscussionScreen(nav: NavHostController) {
 
             LazyColumn(Modifier.weight(1f)) {
                 items(descriptions) { desc ->
-
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp)
+                    ) {
                         Card(
-                            Modifier.fillMaxWidth().clickable {
-                                selectedDescId =
-                                    if (selectedDescId == desc.id) null else desc.id
-                                if (selectedDescId != null) loadComments(desc.id)
-                            },
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedDescId =
+                                        if (selectedDescId == desc.id) null else desc.id
+                                    if (selectedDescId != null) loadComments(desc.id)
+                                },
                             shape = RoundedCornerShape(16.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFFECEAFF))
                         ) {
                             Column(Modifier.padding(16.dp)) {
-
                                 Row(
                                     Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -274,7 +269,6 @@ fun DiscussionScreen(nav: NavHostController) {
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Medium
                                     )
-
                                     if (desc.uid == uid) {
                                         Row {
                                             Text(
@@ -328,14 +322,13 @@ fun DiscussionScreen(nav: NavHostController) {
 
                             Button(
                                 onClick = { saveComment() },
-                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
-                                    when {
-                                        editCommentMode -> "Update"
-                                        else -> "Post"
-                                    },
+                                    if (editCommentMode) "Update" else "Post",
                                     fontSize = 16.sp
                                 )
                             }

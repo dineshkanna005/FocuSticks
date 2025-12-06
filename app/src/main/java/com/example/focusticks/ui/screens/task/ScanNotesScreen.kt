@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,7 +34,7 @@ import java.io.InputStream
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScanNotesScreen(nav: NavHostController) {
+fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -54,33 +55,26 @@ fun ScanNotesScreen(nav: NavHostController) {
                 errorText = null
                 val bmp = loadBitmapFromUri(ctx, uri)
                 previewBitmap = bmp
-
                 if (bmp != null) {
                     val tasks = withContext(Dispatchers.IO) {
                         runCatching { GeminiApi.extractTasks(bmp) }.getOrElse { emptyList() }
                     }
-
                     if (tasks.isEmpty()) {
-                        extractedTasks = listOf(
-                            AiTaskEditable("", "", "", "", "", "10")
-                        )
+                        extractedTasks = listOf(AiTaskEditable("", "", "", "", "", "10"))
                         errorText = "Could not detect tasks. Please fill manually."
                     } else {
                         extractedTasks = tasks.map {
                             AiTaskEditable(
-                                title = it.title,
-                                subject = it.subject,
-                                difficulty = it.difficulty,
-                                category = it.category,
-                                due = it.due,
-                                reminder = "10"
+                                it.title,
+                                it.subject,
+                                it.difficulty,
+                                it.category,
+                                it.due,
+                                "10"
                             )
                         }
                     }
-                } else {
-                    errorText = "Unable to read image."
-                }
-
+                } else errorText = "Unable to read image."
                 loading = false
             }
         }
@@ -91,19 +85,24 @@ fun ScanNotesScreen(nav: NavHostController) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { nav.popBackStack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                    }
+                    Text(
+                        "Scan Notes",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
                 Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { nav.popBackStack() }
-                )
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    "Scan Notes",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                    Icons.Filled.Menu,
+                    "",
+                    modifier = Modifier.clickable { openDrawer() },
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
@@ -167,7 +166,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                         )
                     ) {
                         Column(Modifier.padding(16.dp)) {
-
                             OutlinedTextField(
                                 value = t.title,
                                 onValueChange = { t.title = it },
@@ -175,7 +173,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(12.dp))
-
                             OutlinedTextField(
                                 value = t.subject,
                                 onValueChange = { t.subject = it },
@@ -183,7 +180,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(12.dp))
-
                             OutlinedTextField(
                                 value = t.difficulty,
                                 onValueChange = { t.difficulty = it },
@@ -191,7 +187,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(12.dp))
-
                             OutlinedTextField(
                                 value = t.category,
                                 onValueChange = { t.category = it },
@@ -199,7 +194,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(12.dp))
-
                             OutlinedTextField(
                                 value = t.due,
                                 onValueChange = { t.due = it },
@@ -207,7 +201,6 @@ fun ScanNotesScreen(nav: NavHostController) {
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(12.dp))
-
                             OutlinedTextField(
                                 value = t.reminder,
                                 onValueChange = { t.reminder = it },

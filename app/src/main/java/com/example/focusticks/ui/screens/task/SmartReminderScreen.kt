@@ -1,9 +1,11 @@
 package com.example.focusticks.ui.screens.task
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SmartReminderScreen(nav: NavHostController) {
+fun SmartReminderScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: ""
     val db = Firebase.firestore
@@ -34,12 +36,10 @@ fun SmartReminderScreen(nav: NavHostController) {
             .whereEqualTo("completed", false)
             .get()
             .addOnSuccessListener { snap ->
-
                 val df12 = SimpleDateFormat("MM/dd/yyyy hh:mm a", Locale.US)
                 val df24 = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US)
                 val now = System.currentTimeMillis()
                 val window = now + 24L * 60L * 60L * 1000L
-
                 val items = snap.documents.mapNotNull { doc ->
                     val dueString = doc.getString("due") ?: return@mapNotNull null
                     val dueDate =
@@ -48,7 +48,6 @@ fun SmartReminderScreen(nav: NavHostController) {
                             try { df24.parse(dueString) }
                             catch (_: Exception) { null }
                         } ?: return@mapNotNull null
-
                     val diffText = doc.getString("difficulty")?.lowercase()?.trim() ?: ""
                     val diffScore =
                         when {
@@ -57,7 +56,6 @@ fun SmartReminderScreen(nav: NavHostController) {
                             diffText.contains("easy") -> 1
                             else -> 0
                         }
-
                     Triple(
                         TaskItem(
                             id = doc.id,
@@ -74,7 +72,6 @@ fun SmartReminderScreen(nav: NavHostController) {
                         diffScore
                     )
                 }
-
                 val urgent = items.filter { it.second in now..window }
                 val best = urgent.maxByOrNull { it.third }
                 hardestTask = best?.first
@@ -84,19 +81,38 @@ fun SmartReminderScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Smart Reminder") },
-                navigationIcon = {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
+                    Text(
+                        "Smart Reminder",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
                 }
-            )
+
+                Icon(
+                    Icons.Filled.Menu,
+                    "",
+                    modifier = Modifier.clickable { openDrawer() },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     ) { pad ->
 
         Column(
-            Modifier.padding(pad).padding(20.dp),
+            Modifier
+                .padding(pad)
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 

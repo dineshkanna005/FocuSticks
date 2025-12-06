@@ -4,13 +4,14 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.pm.PackageManager
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,7 +29,7 @@ import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTaskScreen(nav: NavHostController) {
+fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
@@ -43,14 +44,26 @@ fun AddTaskScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Add Task") },
-                navigationIcon = {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, null)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
+                    Text("Add Task", style = MaterialTheme.typography.titleLarge)
                 }
-            )
+                Icon(
+                    Icons.Filled.Menu,
+                    "",
+                    modifier = Modifier.clickable { openDrawer() },
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     ) { pad ->
 
@@ -70,10 +83,8 @@ fun AddTaskScreen(nav: NavHostController) {
                 )
             ) {
                 Column(Modifier.padding(20.dp)) {
-
                     Text("Task Details", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(16.dp))
-
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
@@ -81,7 +92,6 @@ fun AddTaskScreen(nav: NavHostController) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = subject,
                         onValueChange = { subject = it },
@@ -89,7 +99,6 @@ fun AddTaskScreen(nav: NavHostController) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = difficulty,
                         onValueChange = { difficulty = it },
@@ -97,7 +106,6 @@ fun AddTaskScreen(nav: NavHostController) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = category,
                         onValueChange = { category = it },
@@ -117,10 +125,8 @@ fun AddTaskScreen(nav: NavHostController) {
                 )
             ) {
                 Column(Modifier.padding(20.dp)) {
-
                     Text("Timing", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(16.dp))
-
                     OutlinedTextField(
                         value = due,
                         onValueChange = { due = it },
@@ -128,7 +134,6 @@ fun AddTaskScreen(nav: NavHostController) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(12.dp))
-
                     OutlinedTextField(
                         value = remind,
                         onValueChange = { remind = it },
@@ -183,7 +188,8 @@ fun AddTaskScreen(nav: NavHostController) {
                                 .setAutoCancel(true)
                                 .build()
 
-                            if (ActivityCompat.checkSelfPermission(
+                            if (
+                                ActivityCompat.checkSelfPermission(
                                     context,
                                     Manifest.permission.POST_NOTIFICATIONS
                                 ) == PackageManager.PERMISSION_GRANTED
