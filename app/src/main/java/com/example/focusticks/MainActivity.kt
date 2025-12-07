@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.*
 import com.example.focusticks.ui.BottomBar
 import com.example.focusticks.ui.screens.*
@@ -56,6 +58,18 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
     val scope = rememberCoroutineScope()
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
+    var startHandled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(openTaskId) {
+        if (!startHandled && openTaskId != null) {
+            startHandled = true
+            if (openType == "completed")
+                nav.navigate("task_completed?openTaskId=$openTaskId&openType=$openType")
+            else
+                nav.navigate("task?openTaskId=$openTaskId&openType=$openType")
+        }
+    }
+
     val drawerItems = listOf(
         "profile" to "👤 Profile",
         "calendar" to "📅 Calendar",
@@ -64,15 +78,6 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
         "settings" to "⚙ Settings"
     )
 
-    LaunchedEffect(openTaskId, openType) {
-        if (openTaskId != null) {
-            when (openType) {
-                "completed" -> nav.navigate("task_completed")
-                else -> nav.navigate("task")
-            }
-        }
-    }
-
     val route = nav.currentBackStackEntryAsState().value?.destination?.route
 
     ModalNavigationDrawer(
@@ -80,7 +85,6 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
         drawerContent = {
             ModalDrawerSheet {
                 Column {
-
                     drawerItems.forEach {
                         NavigationDrawerItem(
                             label = { Text(it.second) },
@@ -96,9 +100,7 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                         modifier = Modifier
                             .padding(20.dp)
                             .clickable {
-                                scope.launch {
-                                    drawerState.close()
-                                }
+                                scope.launch { drawerState.close() }
                                 Firebase.auth.signOut()
                                 nav.navigate("login") {
                                     popUpTo("dashboard") { inclusive = true }
@@ -121,7 +123,7 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
         ) { pad ->
             Surface(modifier = Modifier.padding(pad)) {
 
-                NavHost(navController = nav, startDestination = "splash") {
+                NavHost(nav, startDestination = "splash") {
 
                     composable("splash") {
                         SplashScreen { next ->
@@ -136,12 +138,33 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                     composable("forgot") { ForgotPasswordScreen(nav) }
                     composable("dashboard") { DashboardScreen(nav, openDrawer) }
 
-                    composable("task") { TaskScreen(nav, openTaskId, openType, openDrawer) }
+                    composable(
+                        route = "task?openTaskId={openTaskId}&openType={openType}",
+                        arguments = listOf(
+                            navArgument("openTaskId") { nullable = true; type = NavType.StringType },
+                            navArgument("openType") { nullable = true; type = NavType.StringType }
+                        )
+                    ) { back ->
+                        val id = back.arguments?.getString("openTaskId")
+                        val type = back.arguments?.getString("openType")
+                        TaskScreen(nav, id, type, openDrawer)
+                    }
+
                     composable("addTask") { AddTaskScreen(nav, openDrawer) }
                     composable("scanNotes") { ScanNotesScreen(nav, openDrawer) }
-                    composable("task_completed") {
-                        CompletedTaskScreen(nav, openTaskId, openType, openDrawer)
+
+                    composable(
+                        route = "task_completed?openTaskId={openTaskId}&openType={openType}",
+                        arguments = listOf(
+                            navArgument("openTaskId") { nullable = true; type = NavType.StringType },
+                            navArgument("openType") { nullable = true; type = NavType.StringType }
+                        )
+                    ) { back ->
+                        val id = back.arguments?.getString("openTaskId")
+                        val type = back.arguments?.getString("openType")
+                        CompletedTaskScreen(nav, id, type, openDrawer)
                     }
+
                     composable("smartReminder") { SmartReminderScreen(nav, openDrawer) }
                     composable("leaderboard") { LeaderboardScreen(nav, openDrawer) }
                     composable("profile") { ProfileScreen(nav, openDrawer) }

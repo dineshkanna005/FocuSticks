@@ -9,10 +9,32 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.*
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,24 +42,23 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.example.focusticks.NotificationHelper
 import com.example.focusticks.TaskReminderReceiver
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Menu
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, openDrawer: () -> Unit) {
-
+fun TaskScreen(
+    nav: NavHostController,
+    openTaskId: String?,
+    openType: String?,
+    openDrawer: () -> Unit
+) {
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
     val context = LocalContext.current
@@ -45,16 +66,46 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
 
     var tasks by remember { mutableStateOf(listOf<TaskItem>()) }
     var selectedTask by remember { mutableStateOf<TaskItem?>(null) }
-    var flashId by remember { mutableStateOf("") }
-    var scrollIndex by remember { mutableStateOf(-1) }
 
-    LaunchedEffect(openTaskId) {
-        if (!openTaskId.isNullOrEmpty() && openType != "completed") flashId = openTaskId
+    var flashId by remember { mutableStateOf(openTaskId ?: "") }
+    var pendingScrollId by remember { mutableStateOf(openTaskId ?: "") }
+
+    var sortType by remember { mutableStateOf("recent") }
+    var filterType by remember { mutableStateOf("all") }
+
+    val filteredTasks = remember(tasks, filterType) {
+        when (filterType) {
+            "easy" -> tasks.filter { it.difficulty.equals("easy", true) }
+            "medium" -> tasks.filter { it.difficulty.equals("medium", true) }
+            "hard" -> tasks.filter { it.difficulty.equals("hard", true) }
+            else -> tasks
+        }
+    }
+
+    val sortedTasks = remember(filteredTasks, sortType) {
+        when (sortType) {
+            "due_asc" -> filteredTasks.sortedBy { parseDueMillis(it.due) ?: Long.MAX_VALUE }
+            "due_desc" -> filteredTasks.sortedByDescending { parseDueMillis(it.due) ?: Long.MIN_VALUE }
+            "easy_hard" -> filteredTasks.sortedBy { it.difficulty }
+            "hard_easy" -> filteredTasks.sortedByDescending { it.difficulty }
+            else -> filteredTasks
+        }
+    }
+
+    LaunchedEffect(tasks) {
+        if (tasks.isNotEmpty() && !pendingScrollId.isNullOrEmpty()) {
+            val index = tasks.indexOfFirst { it.id == pendingScrollId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+                flashId = pendingScrollId!!
+                pendingScrollId = ""
+            }
+        }
     }
 
     LaunchedEffect(flashId) {
         if (flashId.isNotEmpty()) {
-            kotlinx.coroutines.delay(900)
+            delay(900)
             flashId = ""
         }
     }
@@ -77,59 +128,13 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                         completedAt = ""
                     )
                 } ?: emptyList()
-
-                if (!openTaskId.isNullOrEmpty()) {
-                    scrollIndex = tasks.indexOfFirst { it.id == openTaskId }
-                }
             }
-    }
-
-    LaunchedEffect(scrollIndex) {
-        if (scrollIndex >= 0) {
-            listState.animateScrollToItem(scrollIndex)
-            scrollIndex = -1
-        }
     }
 
     fun markTaskAsCompleted(task: TaskItem) {
-        val now = System.currentTimeMillis()
         val formatted = SimpleDateFormat("MM/dd/yyyy HH:mm", Locale.US).format(Date())
-
         db.collection("tasks").document(task.id)
             .update(mapOf("completed" to true, "completedAt" to formatted))
-            .addOnSuccessListener {
-                flashId = task.id
-
-                db.collection("users").document(uid).get().addOnSuccessListener { snap ->
-                    val user = snap.toObject(com.example.focusticks.User::class.java) ?: return@addOnSuccessListener
-                    val last = user.lastTaskCompleted
-                    val streak = user.streakDays
-                    val lastDay = TimeUnit.MILLISECONDS.toDays(last)
-                    val todayDay = TimeUnit.MILLISECONDS.toDays(now)
-                    val newStreak =
-                        if (last == 0L) 1
-                        else if (todayDay == lastDay) streak
-                        else if (todayDay - lastDay == 1L) streak + 1
-                        else 1
-
-                    db.collection("users").document(uid)
-                        .update(
-                            mapOf(
-                                "points" to user.points + 10,
-                                "lastTaskCompleted" to now,
-                                "streakDays" to newStreak
-                            )
-                        )
-
-                    NotificationHelper.showReminderNotification(
-                        context,
-                        "Task Completed: ${task.title}",
-                        task.id,
-                        "completed"
-                    )
-                }
-            }
-
         cancelReminder(context, task.id)
     }
 
@@ -152,11 +157,6 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                     "uid" to uid
                 )
             )
-
-        val dueMillis = parseDueMillis(updated.due)
-        if (dueMillis != null) scheduleReminder(context, updated.id, updated.title, updated.due, updated.remindBefore)
-        else cancelReminder(context, updated.id)
-
         selectedTask = null
     }
 
@@ -169,14 +169,12 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
                     Text("Task", style = MaterialTheme.typography.headlineSmall)
                 }
-
                 Icon(
                     Icons.Filled.Menu,
                     "",
@@ -186,7 +184,6 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
             }
         }
     ) { pad ->
-
         Column(Modifier.padding(pad)) {
 
             Row(
@@ -203,13 +200,108 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                 Text("Completed", Modifier.clickable { nav.navigate("task_completed") })
             }
 
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.Start
+            ) {
+                FilterChip(
+                    selected = filterType == "all",
+                    onClick = { filterType = "all" },
+                    label = { Text("All") },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                FilterChip(
+                    selected = filterType == "easy",
+                    onClick = { filterType = "easy" },
+                    label = { Text("Easy") },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                FilterChip(
+                    selected = filterType == "medium",
+                    onClick = { filterType = "medium" },
+                    label = { Text("Medium") },
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+                FilterChip(
+                    selected = filterType == "hard",
+                    onClick = { filterType = "hard" },
+                    label = { Text("Hard") }
+                )
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                var expanded by remember { mutableStateOf(false) }
+
+                Box {
+                    Button(onClick = { expanded = true }) {
+                        Text(
+                            when (sortType) {
+                                "due_asc" -> "Due ↑"
+                                "due_desc" -> "Due ↓"
+                                "easy_hard" -> "Easy → Hard"
+                                "hard_easy" -> "Hard → Easy"
+                                else -> "Recent"
+                            }
+                        )
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Recently Added") },
+                            onClick = {
+                                sortType = "recent"
+                                expanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Due Date ↑") },
+                            onClick = {
+                                sortType = "due_asc"
+                                expanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Due Date ↓") },
+                            onClick = {
+                                sortType = "due_desc"
+                                expanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Easy → Hard") },
+                            onClick = {
+                                sortType = "easy_hard"
+                                expanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Hard → Easy") },
+                            onClick = {
+                                sortType = "hard_easy"
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .fillMaxSize(),
                 state = listState
             ) {
-                items(tasks) { t ->
+                items(sortedTasks) { t ->
 
                     val dueMillis = parseDueMillis(t.due)
                     val overdue = dueMillis != null && System.currentTimeMillis() > dueMillis
@@ -246,7 +338,6 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                                     t.title,
                                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                                 )
-
                                 Box(
                                     Modifier
                                         .background(
@@ -255,18 +346,14 @@ fun TaskScreen(nav: NavHostController, openTaskId: String?, openType: String?, o
                                         )
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
-                                    Text(
-                                        t.due,
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
+                                    Text(t.due, color = Color.White, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
 
                             Spacer(Modifier.height(6.dp))
-                            Text("Subject: ${t.subject}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                            Text("Category: ${t.category}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
-                            Text("Difficulty: ${t.difficulty}", color = Color.Gray, style = MaterialTheme.typography.bodySmall)
+                            Text("Subject: ${t.subject}", color = Color.Gray)
+                            Text("Category: ${t.category}", color = Color.Gray)
+                            Text("Difficulty: ${t.difficulty}", color = Color.Gray)
                             Spacer(Modifier.height(12.dp))
 
                             Row(

@@ -2,8 +2,6 @@ package com.example.focusticks.ui.screens
 
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,12 +12,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -27,7 +25,6 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
-import com.google.firebase.storage.ktx.storage
 
 data class NoteItem(
     val id: String = "",
@@ -42,8 +39,8 @@ data class NoteItem(
 fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val db = Firebase.firestore
-    val storage = Firebase.storage
     val uid = Firebase.auth.currentUser?.uid ?: ""
+    val context = LocalContext.current
 
     var notes by remember { mutableStateOf(listOf<NoteItem>()) }
     var search by remember { mutableStateOf("") }
@@ -52,24 +49,8 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     var showDialog by remember { mutableStateOf(false) }
     var dialogTitle by remember { mutableStateOf("") }
     var dialogBody by remember { mutableStateOf("") }
+    var dialogFileLink by remember { mutableStateOf("") }
     var editingId by remember { mutableStateOf<String?>(null) }
-
-    val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
-    ) { uris ->
-        val noteId = expanded
-        if (noteId.isNotEmpty()) {
-            uris.forEach { uri ->
-                val ref = storage.reference.child("notes/$uid/$noteId/${System.currentTimeMillis()}")
-                ref.putFile(uri).addOnSuccessListener {
-                    ref.downloadUrl.addOnSuccessListener { url ->
-                        db.collection("notes").document(noteId)
-                            .update("files", FieldValue.arrayUnion(url.toString()))
-                    }
-                }
-            }
-        }
-    }
 
     LaunchedEffect(Unit) {
         db.collection("notes")
@@ -88,31 +69,42 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     }
 
     fun saveNote() {
-        if (dialogTitle.isBlank() && dialogBody.isBlank()) return
+        val fileLink = dialogFileLink.trim()
+        val initialFiles = if (fileLink.isNotBlank()) listOf(fileLink) else emptyList()
+
         if (editingId == null) {
             db.collection("notes").add(
                 mapOf(
                     "uid" to uid,
                     "title" to dialogTitle,
                     "body" to dialogBody,
-                    "files" to emptyList<String>()
+                    "files" to initialFiles
                 )
             )
         } else {
-            db.collection("notes").document(editingId!!)
-                .update(mapOf("title" to dialogTitle, "body" to dialogBody))
+            val updates = mutableMapOf<String, Any>(
+                "title" to dialogTitle,
+                "body" to dialogBody
+            )
+            if (fileLink.isNotBlank()) {
+                updates["files"] = FieldValue.arrayUnion(fileLink)
+            }
+            db.collection("notes").document(editingId!!).update(updates)
         }
+
         dialogTitle = ""
         dialogBody = ""
+        dialogFileLink = ""
         editingId = null
         showDialog = false
     }
 
     fun openFile(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        try { nav.context.startActivity(intent) } catch (_: Exception) {}
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        try { context.startActivity(intent) } catch (_: Exception) {}
     }
 
     fun deleteNote(id: String) {
@@ -145,9 +137,8 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     ) { pad ->
 
         Column(
-            Modifier.padding(pad).padding(16.dp).fillMaxSize()
+            Modifier.padding(pad).padding(horizontal = 16.dp).fillMaxSize()
         ) {
-
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it },
@@ -163,6 +154,7 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                     editingId = null
                     dialogTitle = ""
                     dialogBody = ""
+                    dialogFileLink = ""
                     showDialog = true
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -178,15 +170,16 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
 
-                items(notes.filter {
+                val filtered = notes.filter {
                     it.title.contains(search, true) || it.body.contains(search, true)
-                }, key = { it.id }) { note ->
+                }
+
+                items(filtered, key = { it.id }) { note ->
 
                     val isExpanded = expanded == note.id
 
                     Card(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { expanded = if (isExpanded) "" else note.id },
+                        modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant),
                         elevation = CardDefaults.cardElevation(3.dp)
@@ -194,11 +187,35 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
                         Column(Modifier.padding(16.dp)) {
 
-                            Text(
-                                note.title.ifBlank { "Untitled Note" },
-                                fontSize = 18.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { expanded = if (isExpanded) "" else note.id },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    note.title.ifBlank { "Untitled Note" },
+                                    fontSize = 18.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Row {
+                                    IconButton(onClick = {
+                                        editingId = note.id
+                                        dialogTitle = note.title
+                                        dialogBody = note.body
+                                        dialogFileLink = ""
+                                        showDialog = true
+                                    }) {
+                                        Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                    IconButton(onClick = { deleteNote(note.id) }) {
+                                        Icon(Icons.Filled.Delete, null, tint = Color.Red)
+                                    }
+                                }
+                            }
 
                             if (isExpanded) {
 
@@ -210,52 +227,19 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                     color = Color.DarkGray
                                 )
 
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(16.dp))
 
                                 if (note.files.isNotEmpty()) {
-                                    Text("Attachments:", fontSize = 14.sp)
-                                    Spacer(Modifier.height(6.dp))
-
                                     note.files.forEach { url ->
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.fillMaxWidth()
-                                                .clickable { openFile(url) }
+                                        Button(
+                                            onClick = { openFile(url) },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            shape = RoundedCornerShape(10.dp)
                                         ) {
-                                            Text(
-                                                url.substringAfterLast("/"),
-                                                modifier = Modifier.weight(1f),
-                                                fontSize = 13.sp
-                                            )
-                                            IconButton(onClick = { deleteFile(note.id, url) }) {
-                                                Icon(Icons.Filled.Delete, null, tint = Color.Red)
-                                            }
+                                            Text("View", fontSize = 14.sp)
                                         }
-                                    }
-                                }
-
-                                Spacer(Modifier.height(10.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.End
-                                ) {
-                                    IconButton(onClick = {
-                                        expanded = note.id
-                                        picker.launch("*/*")
-                                    }) {
-                                        Icon(Icons.Filled.Upload, null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    IconButton(onClick = {
-                                        editingId = note.id
-                                        dialogTitle = note.title
-                                        dialogBody = note.body
-                                        showDialog = true
-                                    }) {
-                                        Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary)
-                                    }
-                                    IconButton(onClick = { deleteNote(note.id) }) {
-                                        Icon(Icons.Filled.Delete, null, tint = Color.Red)
                                     }
                                 }
                             }
@@ -287,6 +271,14 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         minLines = 4
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = dialogFileLink,
+                        onValueChange = { dialogFileLink = it },
+                        label = { Text("External File Link") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
                     )
                 }
             },
