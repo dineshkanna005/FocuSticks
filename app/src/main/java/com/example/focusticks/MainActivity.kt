@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
+import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,27 +24,54 @@ import com.example.focusticks.ui.screens.*
 import com.example.focusticks.ui.screens.subject.SubjectsScreen
 import com.example.focusticks.ui.screens.task.*
 import com.example.focusticks.ui.theme.FocuSticksTheme
-import com.google.firebase.auth.ktx.auth
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         Firebase.firestore.clearPersistence()
-            .addOnSuccessListener { startApp() }
-            .addOnFailureListener { startApp() }
-    }
-
-    private fun startApp() {
-        val openTaskId = intent.getStringExtra("openTaskId")
-        val openType = intent.getStringExtra("openType")
 
         setContent {
-            FocuSticksTheme {
-                AppNavigation(openTaskId, openType)
+            val auth = FirebaseAuth.getInstance()
+            var userId by remember { mutableStateOf(auth.currentUser?.uid) }
+            var isDark by remember { mutableStateOf(false) }
+            var themeLoaded by remember { mutableStateOf(false) }
+
+            DisposableEffect(Unit) {
+                val listener = FirebaseAuth.AuthStateListener { a ->
+                    userId = a.currentUser?.uid
+                }
+                auth.addAuthStateListener(listener)
+                onDispose { auth.removeAuthStateListener(listener) }
+            }
+
+            LaunchedEffect(userId) {
+                if (userId == null) {
+                    isDark = false
+                    themeLoaded = true
+                } else {
+                    Firebase.firestore.collection("users").document(userId!!)
+                        .get()
+                        .addOnSuccessListener {
+                            isDark = (it.getString("theme") == "dark")
+                            themeLoaded = true
+                        }
+                        .addOnFailureListener {
+                            isDark = false
+                            themeLoaded = true
+                        }
+                }
+            }
+
+            if (themeLoaded) {
+                FocuSticksTheme(darkTheme = isDark) {
+                    AppNavigation()
+                }
             }
         }
     }
@@ -51,26 +79,12 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppNavigation(openTaskId: String?, openType: String?) {
+fun AppNavigation() {
 
     val nav = rememberNavController()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
-
-    var startHandled by remember { mutableStateOf(false) }
-
-    LaunchedEffect(openTaskId) {
-        if (!startHandled && openTaskId != null) {
-            startHandled = true
-            kotlinx.coroutines.delay(120)
-            if (openType == "completed") {
-                nav.navigate("task_completed?openTaskId=$openTaskId&openType=$openType")
-            } else {
-                nav.navigate("task?openTaskId=$openTaskId&openType=$openType")
-            }
-        }
-    }
 
     val drawerItems = listOf(
         "profile" to "👤 Profile",
@@ -80,7 +94,8 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
         "settings" to "⚙ Settings"
     )
 
-    val route = nav.currentBackStackEntryAsState().value?.destination?.route
+    val backStack by nav.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route ?: ""
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -90,10 +105,12 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                     drawerItems.forEach {
                         NavigationDrawerItem(
                             label = { Text(it.second) },
-                            selected = route == it.first,
+                            selected = currentRoute.startsWith(it.first),
                             onClick = {
                                 scope.launch { drawerState.close() }
-                                nav.navigate(it.first)
+                                nav.navigate(it.first) {
+                                    popUpTo("dashboard")
+                                }
                             },
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
@@ -103,7 +120,7 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                             .padding(20.dp)
                             .clickable {
                                 scope.launch { drawerState.close() }
-                                Firebase.auth.signOut()
+                                FirebaseAuth.getInstance().signOut()
                                 nav.navigate("login") {
                                     popUpTo("dashboard") { inclusive = true }
                                 }
@@ -117,10 +134,11 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
             }
         }
     ) {
+
         Scaffold(
             bottomBar = {
-                if (route !in listOf("splash", "login", "signup", "forgot"))
-                    BottomBar(nav, route)
+                if (currentRoute !in listOf("splash", "login", "signup", "forgot"))
+                    BottomBar(nav, currentRoute)
             }
         ) { pad ->
             Surface(modifier = Modifier.padding(pad)) {
@@ -128,8 +146,8 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                 NavHost(nav, startDestination = "splash") {
 
                     composable("splash") {
-                        SplashScreen { next ->
-                            nav.navigate(next) {
+                        SplashScreen {
+                            nav.navigate(it) {
                                 popUpTo("splash") { inclusive = true }
                             }
                         }
@@ -141,30 +159,36 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                     composable("dashboard") { DashboardScreen(nav, openDrawer) }
 
                     composable(
-                        route = "task?openTaskId={openTaskId}&openType={openType}",
+                        "task?openTaskId={openTaskId}&openType={openType}",
                         arguments = listOf(
                             navArgument("openTaskId") { nullable = true; type = NavType.StringType },
                             navArgument("openType") { nullable = true; type = NavType.StringType }
                         )
-                    ) { back ->
-                        val id = back.arguments?.getString("openTaskId")
-                        val type = back.arguments?.getString("openType")
-                        TaskScreen(nav, id, type, openDrawer)
+                    ) {
+                        TaskScreen(
+                            nav,
+                            it.arguments?.getString("openTaskId"),
+                            it.arguments?.getString("openType"),
+                            openDrawer
+                        )
                     }
 
                     composable("addTask") { AddTaskScreen(nav, openDrawer) }
                     composable("scanNotes") { ScanNotesScreen(nav, openDrawer) }
 
                     composable(
-                        route = "task_completed?openTaskId={openTaskId}&openType={openType}",
+                        "task_completed?openTaskId={openTaskId}&openType={openType}",
                         arguments = listOf(
                             navArgument("openTaskId") { nullable = true; type = NavType.StringType },
                             navArgument("openType") { nullable = true; type = NavType.StringType }
                         )
-                    ) { back ->
-                        val id = back.arguments?.getString("openTaskId")
-                        val type = back.arguments?.getString("openType")
-                        CompletedTaskScreen(nav, id, type, openDrawer)
+                    ) {
+                        CompletedTaskScreen(
+                            nav,
+                            it.arguments?.getString("openTaskId"),
+                            it.arguments?.getString("openType"),
+                            openDrawer
+                        )
                     }
 
                     composable("leaderboard") { LeaderboardScreen(nav, openDrawer) }
@@ -175,10 +199,7 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                     composable("notes") { NotesScreen(nav, openDrawer) }
                     composable("subjects") { SubjectsScreen(nav, openDrawer) }
                     composable("settings") { SettingsScreen(nav, openDrawer) }
-
-                    composable("smartReminder") {
-                        SmartReminderScreen(nav, openDrawer)
-                    }
+                    composable("smartReminder") { SmartReminderScreen(nav, openDrawer) }
                 }
             }
         }

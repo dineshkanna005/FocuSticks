@@ -35,9 +35,8 @@ fun LeaderboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
     LaunchedEffect(Unit) {
         db.collection("users")
             .orderBy("points", Query.Direction.DESCENDING)
-            .get()
-            .addOnSuccessListener { snap ->
-                leaderboard = snap.documents.map { doc ->
+            .addSnapshotListener { snap, _ ->
+                leaderboard = snap?.documents?.map { doc ->
                     User(
                         uid = doc.id,
                         name = doc.getString("name") ?: "",
@@ -48,10 +47,9 @@ fun LeaderboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         points = doc.getLong("points") ?: 0L,
                         lastTaskCompleted = doc.getLong("lastTaskCompleted") ?: 0L
                     )
-                }
+                } ?: emptyList()
                 isLoading = false
             }
-            .addOnFailureListener { isLoading = false }
     }
 
     Scaffold(
