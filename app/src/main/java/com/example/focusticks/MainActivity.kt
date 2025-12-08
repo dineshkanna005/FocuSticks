@@ -63,10 +63,12 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
     LaunchedEffect(openTaskId) {
         if (!startHandled && openTaskId != null) {
             startHandled = true
-            if (openType == "completed")
+            kotlinx.coroutines.delay(120)
+            if (openType == "completed") {
                 nav.navigate("task_completed?openTaskId=$openTaskId&openType=$openType")
-            else
+            } else {
                 nav.navigate("task?openTaskId=$openTaskId&openType=$openType")
+            }
         }
     }
 
@@ -165,7 +167,6 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                         CompletedTaskScreen(nav, id, type, openDrawer)
                     }
 
-                    composable("smartReminder") { SmartReminderScreen(nav, openDrawer) }
                     composable("leaderboard") { LeaderboardScreen(nav, openDrawer) }
                     composable("profile") { ProfileScreen(nav, openDrawer) }
                     composable("streak") { StreakScreen(nav, openDrawer) }
@@ -174,6 +175,10 @@ fun AppNavigation(openTaskId: String?, openType: String?) {
                     composable("notes") { NotesScreen(nav, openDrawer) }
                     composable("subjects") { SubjectsScreen(nav, openDrawer) }
                     composable("settings") { SettingsScreen(nav, openDrawer) }
+
+                    composable("smartReminder") {
+                        SmartReminderScreen(nav, openDrawer)
+                    }
                 }
             }
         }

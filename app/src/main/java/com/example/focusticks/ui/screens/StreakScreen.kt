@@ -29,19 +29,19 @@ fun StreakScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val uid = Firebase.auth.currentUser?.uid ?: return
     val ref = Firebase.firestore.collection("users").document(uid)
+    val tasksRef = Firebase.firestore.collection("tasks")
 
     var totalPoints by remember { mutableStateOf(0L) }
     var currentStreak by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        ref.get().addOnSuccessListener {
-            val user = it.toObject<User>() ?: User(uid = uid)
+        ref.get().addOnSuccessListener { snap ->
+            val user = snap.toObject<User>() ?: User(uid = uid)
 
             val last = user.lastTaskCompleted
             val streak = user.streakDays
             val now = System.currentTimeMillis()
-
             val lastDay = TimeUnit.MILLISECONDS.toDays(last)
             val todayDay = TimeUnit.MILLISECONDS.toDays(now)
 
@@ -52,8 +52,14 @@ fun StreakScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 else 0
 
             currentStreak = display
-            totalPoints = user.points
-            loading = false
+
+            tasksRef.whereEqualTo("uid", uid)
+                .whereEqualTo("completed", true)
+                .get()
+                .addOnSuccessListener { taskSnap ->
+                    totalPoints = (taskSnap.size() * 10).toLong()
+                    loading = false
+                }
         }.addOnFailureListener { loading = false }
     }
 
@@ -156,7 +162,6 @@ fun StreakScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
                     Text(
                         "$totalPoints",
                         style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),

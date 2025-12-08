@@ -35,7 +35,7 @@ import java.io.InputStream
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
-
+    val context = LocalContext.current
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val uid = Firebase.auth.currentUser?.uid ?: return
@@ -234,12 +234,12 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                         )
                                     )
                                     .addOnSuccessListener { doc ->
-                                        scheduleReminder(
-                                            ctx,
+                                        scheduleMultiReminder(
+                                            context,
                                             doc.id,
                                             t.title,
                                             t.due,
-                                            reminder
+                                            "gentle"
                                         )
                                     }
                             }

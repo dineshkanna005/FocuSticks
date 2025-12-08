@@ -40,7 +40,7 @@ fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
     var category by remember { mutableStateOf("") }
     var difficulty by remember { mutableStateOf("") }
     var due by remember { mutableStateOf("") }
-    var remind by remember { mutableStateOf("") }
+    var urgency by remember { mutableStateOf("gentle") }
 
     Scaffold(
         topBar = {
@@ -133,13 +133,23 @@ fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         label = { Text("Due (MM/dd/yyyy HH:mm)") },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = remind,
-                        onValueChange = { remind = it },
-                        label = { Text("Remind Before (minutes)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
+                    Spacer(Modifier.height(16.dp))
+                    Text("Reminder Urgency", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(10.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = urgency == "gentle", onClick = { urgency = "gentle" })
+                        Text("Gentle (24 hours before)")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = urgency == "moderate", onClick = { urgency = "moderate" })
+                        Text("Moderate (3 hours before)")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = urgency == "urgent", onClick = { urgency = "urgent" })
+                        Text("Urgent (multiple reminders)")
+                    }
                 }
             }
 
@@ -150,7 +160,6 @@ fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
                     if (title.isBlank()) return@Button
 
                     val finalDue = due.trim()
-                    val remindBefore = remind.toLongOrNull() ?: 10L
 
                     db.collection("tasks")
                         .add(
@@ -160,7 +169,7 @@ fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                 "difficulty" to difficulty.trim().ifBlank { "Medium" },
                                 "category" to category.trim().ifBlank { "Assignment" },
                                 "due" to finalDue,
-                                "remindBeforeMinutes" to remindBefore,
+                                "urgencyLevel" to urgency,
                                 "completed" to false,
                                 "createdAt" to Timestamp.now(),
                                 "uid" to uid
@@ -198,12 +207,12 @@ fun AddTaskScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                     .notify(doc.id.hashCode(), notification)
                             }
 
-                            scheduleReminder(
+                            scheduleMultiReminder(
                                 context,
                                 doc.id,
                                 title.trim(),
                                 finalDue,
-                                remindBefore
+                                urgency
                             )
 
                             nav.popBackStack()

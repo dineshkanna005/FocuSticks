@@ -57,16 +57,15 @@ fun SmartReminderScreen(nav: NavHostController, openDrawer: () -> Unit) {
                             else -> 0
                         }
                     Triple(
-                        TaskItem(
+                        first = TaskItem(
                             id = doc.id,
                             title = doc.getString("title") ?: "",
                             subject = doc.getString("subject") ?: "",
                             category = doc.getString("category") ?: "",
                             difficulty = doc.getString("difficulty") ?: "",
                             due = dueString,
-                            remindBefore = doc.getLong("remindBeforeMinutes") ?: 0L,
-                            completed = false,
-                            completedAt = ""
+                            completed = doc.getBoolean("completed") ?: false,
+                            completedAt = doc.getString("completedAt") ?: ""
                         ),
                         dueDate.time,
                         diffScore
@@ -125,7 +124,10 @@ fun SmartReminderScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 20.dp),
+                        .padding(vertical = 20.dp)
+                        .clickable {
+                            nav.navigate("task?openTaskId=${hardestTask!!.id}&openType=smart")
+                        },
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant
                     ),

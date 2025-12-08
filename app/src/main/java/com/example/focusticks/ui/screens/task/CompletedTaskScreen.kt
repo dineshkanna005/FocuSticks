@@ -34,7 +34,6 @@ fun CompletedTaskScreen(
     val db = Firebase.firestore
 
     var tasks by remember { mutableStateOf(listOf<TaskItem>()) }
-
     val listState = rememberLazyListState()
 
     var flashId by remember { mutableStateOf(openTaskId ?: "") }
@@ -71,7 +70,7 @@ fun CompletedTaskScreen(
                         category = d.getString("category") ?: "",
                         difficulty = d.getString("difficulty") ?: "",
                         due = d.getString("due") ?: "",
-                        remindBefore = d.getLong("remindBeforeMinutes") ?: 0L,
+                        urgency = d.getString("urgencyLevel") ?: "gentle",
                         completed = true,
                         completedAt = d.getString("completedAt") ?: ""
                     )
@@ -108,6 +107,8 @@ fun CompletedTaskScreen(
         ) {
             items(tasks) { t ->
 
+                val index = tasks.indexOf(t)
+
                 val elevation by animateFloatAsState(
                     targetValue = if (flashId == t.id) 10.dp.value else 3.dp.value,
                     animationSpec = tween(300),
@@ -124,12 +125,13 @@ fun CompletedTaskScreen(
                     elevation = CardDefaults.cardElevation(elevation.dp)
                 ) {
                     Column(Modifier.padding(18.dp)) {
-                        Text(t.title, style = MaterialTheme.typography.titleMedium)
+                        Text("${index + 1}. ${t.title}", style = MaterialTheme.typography.titleMedium)
                         Spacer(Modifier.height(6.dp))
                         Text("Subject: ${t.subject}", color = Color.Gray)
                         Text("Category: ${t.category}", color = Color.Gray)
                         Text("Difficulty: ${t.difficulty}", color = Color.Gray)
                         Text("Due: ${t.due}", color = Color.Gray)
+                        Text("Urgency: ${t.urgency.replaceFirstChar { it.uppercase() }}", color = Color.Gray)
                         Text("Completed: ${t.completedAt}", color = Color.Gray)
                     }
                 }

@@ -18,21 +18,20 @@ fun EditTaskDialog(
     var difficulty by remember { mutableStateOf(task.difficulty) }
     var category by remember { mutableStateOf(task.category) }
     var due by remember { mutableStateOf(task.due) }
-    var reminder by remember { mutableStateOf(task.remindBefore.toString()) }
+    var urgency by remember { mutableStateOf(task.urgency) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(20.dp),
         tonalElevation = 4.dp,
         title = {
-            Text(
-                "Edit Task",
-                style = MaterialTheme.typography.headlineSmall
-            )
+            Text("Edit Task", style = MaterialTheme.typography.headlineSmall)
         },
         text = {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-
+            Column(
+                Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -73,13 +72,31 @@ fun EditTaskDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                OutlinedTextField(
-                    value = reminder,
-                    onValueChange = { reminder = it },
-                    label = { Text("Reminder (minutes)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Text("Urgency Level", style = MaterialTheme.typography.titleMedium)
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = urgency == "gentle",
+                        onClick = { urgency = "gentle" }
+                    )
+                    Text("Gentle (24 hours)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = urgency == "moderate",
+                        onClick = { urgency = "moderate" }
+                    )
+                    Text("Moderate (3 hours)")
+                }
+
+                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = urgency == "urgent",
+                        onClick = { urgency = "urgent" }
+                    )
+                    Text("Urgent (multiple)")
+                }
             }
         },
         confirmButton = {
@@ -92,7 +109,7 @@ fun EditTaskDialog(
                             difficulty = difficulty,
                             category = category,
                             due = due,
-                            remindBefore = reminder.toLongOrNull() ?: 10L
+                            urgency = urgency
                         )
                     )
                 },

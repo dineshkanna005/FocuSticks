@@ -11,5 +11,6 @@ data class User(
     val dob: String = "",
     val points: Long = 0L,
     val lastTaskCompleted: Long = 0L,
-    val streakDays: Int = 0
+    val streakDays: Int = 0,
+    val role: String = "student"
 )
