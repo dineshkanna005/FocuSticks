@@ -10,15 +10,52 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.focusticks.NotificationHelper
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
+
+    val uid = FirebaseAuth.getInstance().currentUser?.uid
+    val context = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        if (uid != null) {
+            Firebase.firestore.collection("users")
+                .document(uid)
+                .collection("alerts")
+                .whereEqualTo("seen", false)
+                .get()
+                .addOnSuccessListener { snap ->
+                    if (!snap.isEmpty) {
+                        val doc = snap.documents.first()
+                        val followerUid = doc.getString("followerUid") ?: ""
+
+                        NotificationHelper.showReminderNotification(
+                            context = context,
+                            title = "New Follower!",
+                            taskId = followerUid,
+                            type = "follower"
+                        )
+
+                        Firebase.firestore.collection("users")
+                            .document(uid)
+                            .collection("alerts")
+                            .document(doc.id)
+                            .update("seen", true)
+                    }
+                }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -72,7 +109,7 @@ fun DashboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
             DashboardTile(
                 title = "Discussion",
                 icon = Icons.Filled.Chat,
-                onClick = { nav.navigate("discussion") }
+                onClick = { nav.navigate("groups") }
             )
         }
     }

@@ -21,20 +21,28 @@ import androidx.navigation.navArgument
 import androidx.navigation.compose.*
 import com.example.focusticks.ui.BottomBar
 import com.example.focusticks.ui.screens.*
-import com.example.focusticks.ui.screens.subject.SubjectsScreen
 import com.example.focusticks.ui.screens.task.*
 import com.example.focusticks.ui.theme.FocuSticksTheme
+import com.example.focusticks.ui.screens.posts.PostsFeedScreen
+import com.example.focusticks.ui.screens.posts.CreatePostScreen
+import com.example.focusticks.ui.screens.posts.PostCommentsScreen
+import com.example.focusticks.ui.screens.discussion.GroupsListScreen
+import com.example.focusticks.ui.screens.discussion.CreateGroupScreen
+import com.example.focusticks.ui.screens.discussion.JoinGroupScreen
+import com.example.focusticks.ui.screens.discussion.GroupChatScreen
+import com.example.focusticks.ui.screens.friends.FriendsScreen
+import com.example.focusticks.ui.screens.friends.FriendTasksScreen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Firebase.firestore.clearPersistence()
+        val deepTaskId = intent.getStringExtra("openTaskId")
+        val deepTaskType = intent.getStringExtra("openType")
 
         setContent {
             val auth = FirebaseAuth.getInstance()
@@ -51,10 +59,7 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(userId) {
-                if (userId == null) {
-                    isDark = false
-                    themeLoaded = true
-                } else {
+                if (userId != null) {
                     Firebase.firestore.collection("users").document(userId!!)
                         .get()
                         .addOnSuccessListener {
@@ -65,33 +70,110 @@ class MainActivity : ComponentActivity() {
                             isDark = false
                             themeLoaded = true
                         }
+                } else {
+                    isDark = false
+                    themeLoaded = true
                 }
             }
 
             if (themeLoaded) {
                 FocuSticksTheme(darkTheme = isDark) {
-                    AppNavigation()
+                    CompositionLocalProvider(
+                        LocalThemeReloader provides {
+                            Firebase.firestore.collection("users").document(userId!!)
+                                .get()
+                                .addOnSuccessListener {
+                                    isDark = (it.getString("theme") == "dark")
+                                }
+                        }
+                    ) {
+                        AppNavigation(deepTaskId, deepTaskType)
+                    }
                 }
             }
         }
     }
 }
 
+val LocalThemeReloader = compositionLocalOf<(() -> Unit)> { error("") }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppNavigation() {
+fun AppNavigation(openTaskId: String?, openType: String?) {
 
     val nav = rememberNavController()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
 
+    var showAlert by remember { mutableStateOf(false) }
+    var alertMsg by remember { mutableStateOf("") }
+    var alertId by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid
+        if (uid != null) {
+            Firebase.firestore.collection("users")
+                .document(uid)
+                .collection("alerts")
+                .whereEqualTo("seen", false)
+                .get()
+                .addOnSuccessListener { snap ->
+                    if (!snap.isEmpty) {
+                        val doc = snap.documents.first()
+                        alertMsg = doc.getString("message") ?: ""
+                        alertId = doc.id
+                        showAlert = true
+                    }
+                }
+        }
+
+        if (openTaskId != null) {
+            if (openType == "follower") {
+                nav.navigate("friends?highlightUid=$openTaskId") {
+                    popUpTo(0)
+                }
+            } else {
+                nav.navigate("task?openTaskId=$openTaskId&openType=$openType") {
+                    popUpTo(0)
+                }
+            }
+        }
+    }
+
+    if (showAlert) {
+        AlertDialog(
+            onDismissRequest = { showAlert = false },
+            title = { Text("New Follower!") },
+            text = { Text(alertMsg) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val uid = FirebaseAuth.getInstance().currentUser?.uid
+                        if (uid != null) {
+                            Firebase.firestore.collection("users")
+                                .document(uid)
+                                .collection("alerts")
+                                .document(alertId)
+                                .update("seen", true)
+                        }
+                        showAlert = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     val drawerItems = listOf(
-        "profile" to "👤 Profile",
-        "calendar" to "📅 Calendar",
-        "notes" to "📝 Notes",
-        "subjects" to "📚 Subjects",
-        "settings" to "⚙ Settings"
+        "posts" to "Posts Feed",
+        "profile" to "Profile",
+        "friends" to "Friends",
+        "calendar" to "Calendar",
+        "notes" to "Notes",
+        "achievements" to "Achievements",
+        "settings" to "Settings"
     )
 
     val backStack by nav.currentBackStackEntryAsState()
@@ -134,7 +216,6 @@ fun AppNavigation() {
             }
         }
     ) {
-
         Scaffold(
             bottomBar = {
                 if (currentRoute !in listOf("splash", "login", "signup", "forgot"))
@@ -142,7 +223,6 @@ fun AppNavigation() {
             }
         ) { pad ->
             Surface(modifier = Modifier.padding(pad)) {
-
                 NavHost(nav, startDestination = "splash") {
 
                     composable("splash") {
@@ -193,13 +273,61 @@ fun AppNavigation() {
 
                     composable("leaderboard") { LeaderboardScreen(nav, openDrawer) }
                     composable("profile") { ProfileScreen(nav, openDrawer) }
+
+                    composable(
+                        "friends?highlightUid={highlightUid}",
+                        arguments = listOf(
+                            navArgument("highlightUid") { nullable = true; type = NavType.StringType }
+                        )
+                    ) {
+                        FriendsScreen(nav, openDrawer)
+                    }
+
+                    composable(
+                        "friendTasks/{uid}",
+                        arguments = listOf(navArgument("uid") { type = NavType.StringType })
+                    ) {
+                        FriendTasksScreen(nav, it.arguments?.getString("uid"))
+                    }
+
                     composable("streak") { StreakScreen(nav, openDrawer) }
-                    composable("discussion") { DiscussionScreen(nav, openDrawer) }
                     composable("calendar") { CalendarScreen(nav, openDrawer) }
                     composable("notes") { NotesScreen(nav, openDrawer) }
-                    composable("subjects") { SubjectsScreen(nav, openDrawer) }
+                    composable("achievements") { AchievementsScreen(nav, openDrawer) }
                     composable("settings") { SettingsScreen(nav, openDrawer) }
                     composable("smartReminder") { SmartReminderScreen(nav, openDrawer) }
+
+                    composable("posts") { PostsFeedScreen(nav, openDrawer) }
+                    composable("createPost") { CreatePostScreen(nav, openDrawer) }
+
+                    composable(
+                        "postComments/{postId}",
+                        arguments = listOf(
+                            navArgument("postId") { type = NavType.StringType }
+                        )
+                    ) {
+                        PostCommentsScreen(
+                            nav,
+                            it.arguments?.getString("postId") ?: "",
+                            openDrawer
+                        )
+                    }
+
+                    composable("groups") { GroupsListScreen(nav, openDrawer) }
+                    composable("createGroup") { CreateGroupScreen(nav, openDrawer) }
+                    composable("joinGroup") { JoinGroupScreen(nav, openDrawer) }
+
+                    composable(
+                        "groupChat/{groupId}",
+                        arguments = listOf(
+                            navArgument("groupId") { type = NavType.StringType }
+                        )
+                    ) {
+                        GroupChatScreen(
+                            nav,
+                            it.arguments?.getString("groupId") ?: ""
+                        )
+                    }
                 }
             }
         }

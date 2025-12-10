@@ -2,6 +2,9 @@ package com.example.focusticks.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,6 +17,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -21,16 +25,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import coil.compose.rememberAsyncImagePainter
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 
 data class NoteItem(
     val id: String = "",
     val uid: String = "",
     val title: String = "",
     val body: String = "",
+    val imageUrl: String = "",
     val files: List<String> = emptyList()
 )
 
@@ -39,6 +46,7 @@ data class NoteItem(
 fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     val db = Firebase.firestore
+    val storage = Firebase.storage
     val uid = Firebase.auth.currentUser?.uid ?: ""
     val context = LocalContext.current
 
@@ -50,7 +58,15 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     var dialogTitle by remember { mutableStateOf("") }
     var dialogBody by remember { mutableStateOf("") }
     var dialogFileLink by remember { mutableStateOf("") }
+    var dialogImageUri by remember { mutableStateOf<Uri?>(null) }
+    var dialogImageUrl by remember { mutableStateOf("") }
     var editingId by remember { mutableStateOf<String?>(null) }
+
+    var previewUrl by remember { mutableStateOf("") }
+
+    val picker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri -> dialogImageUri = uri }
 
     LaunchedEffect(Unit) {
         db.collection("notes")
@@ -62,6 +78,7 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         uid = uid,
                         title = it.getString("title") ?: "",
                         body = it.getString("body") ?: "",
+                        imageUrl = it.getString("imageUrl") ?: "",
                         files = it.get("files") as? List<String> ?: emptyList()
                     )
                 } ?: emptyList()
@@ -70,44 +87,78 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     fun saveNote() {
         val fileLink = dialogFileLink.trim()
-        val initialFiles = if (fileLink.isNotBlank()) listOf(fileLink) else emptyList()
+        val fileList = if (fileLink.isNotBlank()) listOf(fileLink) else emptyList()
 
-        if (editingId == null) {
-            db.collection("notes").add(
-                mapOf(
-                    "uid" to uid,
+        if (dialogImageUri != null) {
+            val ref = storage.reference.child("notes/${System.currentTimeMillis()}.jpg")
+            ref.putFile(dialogImageUri!!).addOnSuccessListener {
+                ref.downloadUrl.addOnSuccessListener { url ->
+                    if (editingId == null) {
+                        db.collection("notes").add(
+                            mapOf(
+                                "uid" to uid,
+                                "title" to dialogTitle,
+                                "body" to dialogBody,
+                                "imageUrl" to url.toString(),
+                                "files" to fileList
+                            )
+                        )
+                    } else {
+                        val updates = mutableMapOf<String, Any>(
+                            "title" to dialogTitle,
+                            "body" to dialogBody,
+                            "imageUrl" to url.toString()
+                        )
+                        if (fileLink.isNotBlank()) updates["files"] = FieldValue.arrayUnion(fileLink)
+                        db.collection("notes").document(editingId!!).update(updates)
+                    }
+                    dialogTitle = ""
+                    dialogBody = ""
+                    dialogFileLink = ""
+                    dialogImageUri = null
+                    dialogImageUrl = ""
+                    editingId = null
+                    showDialog = false
+                }
+            }
+        } else {
+            if (editingId == null) {
+                db.collection("notes").add(
+                    mapOf(
+                        "uid" to uid,
+                        "title" to dialogTitle,
+                        "body" to dialogBody,
+                        "imageUrl" to dialogImageUrl,
+                        "files" to fileList
+                    )
+                )
+            } else {
+                val updates = mutableMapOf<String, Any>(
                     "title" to dialogTitle,
                     "body" to dialogBody,
-                    "files" to initialFiles
+                    "imageUrl" to dialogImageUrl
                 )
-            )
-        } else {
-            val updates = mutableMapOf<String, Any>(
-                "title" to dialogTitle,
-                "body" to dialogBody
-            )
-            if (fileLink.isNotBlank()) {
-                updates["files"] = FieldValue.arrayUnion(fileLink)
+                if (fileLink.isNotBlank()) updates["files"] = FieldValue.arrayUnion(fileLink)
+                db.collection("notes").document(editingId!!).update(updates)
             }
-            db.collection("notes").document(editingId!!).update(updates)
+            dialogTitle = ""
+            dialogBody = ""
+            dialogFileLink = ""
+            dialogImageUri = null
+            editingId = null
+            showDialog = false
         }
-
-        dialogTitle = ""
-        dialogBody = ""
-        dialogFileLink = ""
-        editingId = null
-        showDialog = false
     }
 
     fun openFile(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         try { context.startActivity(intent) } catch (_: Exception) {}
     }
 
-    fun deleteNote(id: String) {
+    fun deleteNote(id: String, imageUrl: String) {
+        if (imageUrl.isNotBlank()) {
+            Firebase.storage.getReferenceFromUrl(imageUrl).delete()
+        }
         db.collection("notes").document(id).delete()
     }
 
@@ -137,7 +188,7 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     ) { pad ->
 
         Column(
-            Modifier.padding(pad).padding(horizontal = 16.dp).fillMaxSize()
+            Modifier.padding(pad).padding(16.dp).fillMaxSize()
         ) {
             OutlinedTextField(
                 value = search,
@@ -155,6 +206,8 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                     dialogTitle = ""
                     dialogBody = ""
                     dialogFileLink = ""
+                    dialogImageUri = null
+                    dialogImageUrl = ""
                     showDialog = true
                 },
                 modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -169,13 +222,11 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-
                 val filtered = notes.filter {
                     it.title.contains(search, true) || it.body.contains(search, true)
                 }
 
                 items(filtered, key = { it.id }) { note ->
-
                     val isExpanded = expanded == note.id
 
                     Card(
@@ -184,7 +235,6 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         colors = CardDefaults.cardColors(MaterialTheme.colorScheme.surfaceVariant),
                         elevation = CardDefaults.cardElevation(3.dp)
                     ) {
-
                         Column(Modifier.padding(16.dp)) {
 
                             Row(
@@ -207,25 +257,34 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                         dialogTitle = note.title
                                         dialogBody = note.body
                                         dialogFileLink = ""
+                                        dialogImageUrl = note.imageUrl
+                                        dialogImageUri = null
                                         showDialog = true
                                     }) {
                                         Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary)
                                     }
-                                    IconButton(onClick = { deleteNote(note.id) }) {
+                                    IconButton(onClick = { deleteNote(note.id, note.imageUrl) }) {
                                         Icon(Icons.Filled.Delete, null, tint = Color.Red)
                                     }
                                 }
                             }
 
                             if (isExpanded) {
-
                                 Spacer(Modifier.height(8.dp))
 
-                                Text(
-                                    note.body,
-                                    fontSize = 15.sp,
-                                    color = Color.DarkGray
-                                )
+                                Text(note.body, fontSize = 15.sp, color = Color.DarkGray)
+
+                                if (note.imageUrl.isNotBlank()) {
+                                    Spacer(Modifier.height(16.dp))
+                                    Image(
+                                        painter = rememberAsyncImagePainter(note.imageUrl),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(200.dp)
+                                            .clickable { previewUrl = note.imageUrl }
+                                    )
+                                }
 
                                 Spacer(Modifier.height(16.dp))
 
@@ -273,6 +332,16 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         minLines = 4
                     )
                     Spacer(Modifier.height(12.dp))
+
+                    TextButton(onClick = { picker.launch("image/*") }) {
+                        Text("Upload Image")
+                    }
+
+                    if (dialogImageUri != null) Text("Image Selected")
+                    else if (dialogImageUrl.isNotBlank()) Text("Current Image")
+
+                    Spacer(Modifier.height(12.dp))
+
                     OutlinedTextField(
                         value = dialogFileLink,
                         onValueChange = { dialogFileLink = it },
@@ -289,5 +358,27 @@ fun NotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 TextButton(onClick = { showDialog = false }) { Text("Cancel") }
             }
         )
+    }
+
+    if (previewUrl.isNotBlank()) {
+        Dialog(onDismissRequest = { previewUrl = "" }) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = Color.Black
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(previewUrl),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { previewUrl = "" }
+                    )
+                }
+            }
+        }
     }
 }

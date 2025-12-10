@@ -1,11 +1,16 @@
 package com.example.focusticks.ui.screens.task
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.storage.ktx.storage
 
 @Composable
 fun EditTaskDialog(
@@ -19,6 +24,57 @@ fun EditTaskDialog(
     var category by remember { mutableStateOf(task.category) }
     var due by remember { mutableStateOf(task.due) }
     var urgency by remember { mutableStateOf(task.urgency) }
+    var fileUrl by remember { mutableStateOf(task.fileUrl) }
+    var imageUrl by remember { mutableStateOf(task.imageUrl) }
+    var newImageUri by remember { mutableStateOf<Uri?>(null) }
+    var uploading by remember { mutableStateOf(false) }
+
+    val storage = Firebase.storage
+
+    val pickImage = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        newImageUri = uri
+    }
+
+    fun uploadImageThenSave() {
+        if (newImageUri == null) {
+            onSave(
+                task.copy(
+                    title = title,
+                    subject = subject,
+                    difficulty = difficulty,
+                    category = category,
+                    due = due,
+                    urgency = urgency,
+                    imageUrl = imageUrl,
+                    fileUrl = fileUrl
+                )
+            )
+            return
+        }
+
+        uploading = true
+        val ref = storage.reference.child("taskImages/${System.currentTimeMillis()}.jpg")
+        ref.putFile(newImageUri!!).addOnSuccessListener {
+            ref.downloadUrl.addOnSuccessListener { url ->
+                imageUrl = url.toString()
+                uploading = false
+                onSave(
+                    task.copy(
+                        title = title,
+                        subject = subject,
+                        difficulty = difficulty,
+                        category = category,
+                        due = due,
+                        urgency = urgency,
+                        imageUrl = imageUrl,
+                        fileUrl = fileUrl
+                    )
+                )
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -97,23 +153,28 @@ fun EditTaskDialog(
                     )
                     Text("Urgent (multiple)")
                 }
+
+                Button(
+                    onClick = { pickImage.launch("image/*") },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (newImageUri != null) "Image Selected" else "Change Image")
+                }
+
+                OutlinedTextField(
+                    value = fileUrl,
+                    onValueChange = { fileUrl = it },
+                    label = { Text("File/PDF Link") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
             }
         },
         confirmButton = {
             Button(
-                onClick = {
-                    onSave(
-                        task.copy(
-                            title = title,
-                            subject = subject,
-                            difficulty = difficulty,
-                            category = category,
-                            due = due,
-                            urgency = urgency
-                        )
-                    )
-                },
-                shape = RoundedCornerShape(12.dp)
+                onClick = { uploadImageThenSave() },
+                shape = RoundedCornerShape(12.dp),
+                enabled = !uploading
             ) {
                 Text("Save")
             }
@@ -121,7 +182,8 @@ fun EditTaskDialog(
         dismissButton = {
             OutlinedButton(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                enabled = !uploading
             ) {
                 Text("Cancel")
             }

@@ -30,13 +30,23 @@ fun LeaderboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
     val db = Firebase.firestore
     val currentUid = Firebase.auth.currentUser?.uid
     var leaderboard by remember { mutableStateOf(listOf<User>()) }
+    var friendIds by remember { mutableStateOf(setOf<String>()) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
+        if (currentUid != null) {
+            db.collection("users")
+                .document(currentUid)
+                .collection("friends")
+                .addSnapshotListener { snap, _ ->
+                    friendIds = snap?.documents?.map { it.id }?.toSet() ?: emptySet()
+                }
+        }
+
         db.collection("users")
             .orderBy("points", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, _ ->
-                leaderboard = snap?.documents?.map { doc ->
+                val allUsers = snap?.documents?.map { doc ->
                     User(
                         uid = doc.id,
                         name = doc.getString("name") ?: "",
@@ -48,6 +58,8 @@ fun LeaderboardScreen(nav: NavHostController, openDrawer: () -> Unit) {
                         lastTaskCompleted = doc.getLong("lastTaskCompleted") ?: 0L
                     )
                 } ?: emptyList()
+
+                leaderboard = allUsers.filter { it.uid == currentUid || it.uid in friendIds }
                 isLoading = false
             }
     }

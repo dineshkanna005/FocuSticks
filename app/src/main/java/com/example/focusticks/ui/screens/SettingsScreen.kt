@@ -15,6 +15,7 @@ import androidx.navigation.NavHostController
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.example.focusticks.LocalThemeReloader
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +28,8 @@ fun SettingsScreen(nav: NavHostController, openDrawer: () -> Unit) {
     var notificationsEnabled by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(true) }
 
+    val reloadTheme = LocalThemeReloader.current
+
     LaunchedEffect(Unit) {
         ref.get().addOnSuccessListener {
             val data = it.data ?: mapOf()
@@ -38,6 +41,7 @@ fun SettingsScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
     fun update(field: String, value: Any) {
         ref.update(field, value)
+        reloadTheme()
     }
 
     Scaffold(

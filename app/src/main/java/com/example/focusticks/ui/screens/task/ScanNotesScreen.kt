@@ -1,14 +1,22 @@
 package com.example.focusticks.ui.screens.task
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,8 +29,12 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
-import com.example.focusticks.ai.GeminiApi
+import com.example.focusticks.ai.AiTaskEditable
+import com.example.focusticks.ai.OpenAIApi
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
@@ -30,51 +42,70 @@ import com.google.firebase.ktx.Firebase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.InputStream
+
+fun createImageUri(context: Context): Uri? {
+    val values = ContentValues().apply {
+        put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+    }
+    return context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
+
     val context = LocalContext.current
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val uid = Firebase.auth.currentUser?.uid ?: return
     val db = Firebase.firestore
 
-    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
-    var extractedTasks by remember { mutableStateOf(listOf<AiTaskEditable>()) }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val extractedTasks = remember { mutableStateListOf<AiTaskEditable>() }
     var loading by remember { mutableStateOf(false) }
     var previewBitmap by remember { mutableStateOf<Bitmap?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        selectedImageUri = uri
+    val requestPermission = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {}
+
+    val galleryPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             scope.launch {
                 loading = true
                 errorText = null
-                val bmp = loadBitmapFromUri(ctx, uri)
+                val bmp = loadFullBitmap(context, uri)
                 previewBitmap = bmp
+                extractedTasks.clear()
+
                 if (bmp != null) {
-                    val tasks = withContext(Dispatchers.IO) {
-                        runCatching { GeminiApi.extractTasks(bmp) }.getOrElse { emptyList() }
-                    }
-                    if (tasks.isEmpty()) {
-                        extractedTasks = listOf(AiTaskEditable("", "", "", "", "", "10"))
+                    val aiTasks = OpenAIApi.extractTasks(bmp)
+                    if (aiTasks.isEmpty()) {
+                        extractedTasks.add(AiTaskEditable("", "", "", "", "", "10"))
                         errorText = "Could not detect tasks. Please fill manually."
-                    } else {
-                        extractedTasks = tasks.map {
-                            AiTaskEditable(
-                                it.title,
-                                it.subject,
-                                it.difficulty,
-                                it.category,
-                                it.due,
-                                "10"
-                            )
-                        }
-                    }
-                } else errorText = "Unable to read image."
+                    } else extractedTasks.addAll(aiTasks)
+                } else {
+                    errorText = "Unable to read image."
+                }
+                loading = false
+            }
+        }
+    }
+
+    val takePhoto = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        if (success && cameraUri != null) {
+            scope.launch {
+                loading = true
+                val bmp = loadFullBitmap(context, cameraUri!!)
+                previewBitmap = bmp
+                extractedTasks.clear()
+                if (bmp != null) {
+                    val aiTasks = OpenAIApi.extractTasks(bmp)
+                    if (aiTasks.isEmpty()) {
+                        extractedTasks.add(AiTaskEditable("", "", "", "", "", "10"))
+                    } else extractedTasks.addAll(aiTasks)
+                }
                 loading = false
             }
         }
@@ -83,9 +114,7 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
     Scaffold(
         topBar = {
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -93,39 +122,38 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                     IconButton(onClick = { nav.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
                     }
-                    Text(
-                        "Scan Notes",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Text("Scan Notes", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold))
                 }
-                Icon(
-                    Icons.Filled.Menu,
-                    "",
-                    modifier = Modifier.clickable { openDrawer() },
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Icon(Icons.Filled.Menu, "", modifier = Modifier.clickable { openDrawer() }, tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { pad ->
 
         Column(
-            Modifier
-                .padding(pad)
-                .padding(20.dp)
-                .fillMaxSize(),
+            Modifier.padding(pad).padding(20.dp).fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
 
-            Button(
-                onClick = { picker.launch("image/*") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text("Choose Image")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Button(
+                    onClick = { galleryPicker.launch("image/*") },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Gallery") }
+
+                Button(
+                    onClick = {
+                        val uri = createImageUri(context)
+                        if (uri != null) {
+                            cameraUri = uri
+                            takePhoto.launch(uri)
+                        }
+                    },
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Camera") }
             }
 
             if (loading) {
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(16.dp))
                 CircularProgressIndicator()
             }
 
@@ -136,74 +164,70 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
 
             previewBitmap?.let {
                 Spacer(Modifier.height(20.dp))
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Image(
-                        bitmap = it.asImageBitmap(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp)
-                    )
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                    Image(it.asImageBitmap(), "", Modifier.fillMaxWidth().height(260.dp))
                 }
             }
 
             Spacer(Modifier.height(20.dp))
 
-            LazyColumn(
-                modifier = Modifier.weight(1f, fill = false)
-            ) {
-                items(extractedTasks) { t ->
+            LazyColumn(Modifier.weight(1f, false)) {
+                itemsIndexed(extractedTasks) { index, t ->
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
+                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         Column(Modifier.padding(16.dp)) {
+
                             OutlinedTextField(
                                 value = t.title,
-                                onValueChange = { t.title = it },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(title = it) },
                                 label = { Text("Title") },
                                 modifier = Modifier.fillMaxWidth()
                             )
+
                             Spacer(Modifier.height(12.dp))
+
                             OutlinedTextField(
                                 value = t.subject,
-                                onValueChange = { t.subject = it },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(subject = it) },
                                 label = { Text("Subject") },
                                 modifier = Modifier.fillMaxWidth()
                             )
+
                             Spacer(Modifier.height(12.dp))
+
                             OutlinedTextField(
                                 value = t.difficulty,
-                                onValueChange = { t.difficulty = it },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(difficulty = it) },
                                 label = { Text("Difficulty") },
                                 modifier = Modifier.fillMaxWidth()
                             )
+
                             Spacer(Modifier.height(12.dp))
+
                             OutlinedTextField(
                                 value = t.category,
-                                onValueChange = { t.category = it },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(category = it) },
                                 label = { Text("Category") },
                                 modifier = Modifier.fillMaxWidth()
                             )
+
                             Spacer(Modifier.height(12.dp))
+
                             OutlinedTextField(
                                 value = t.due,
-                                onValueChange = { t.due = it },
-                                label = { Text("Due (MM/dd/yyyy HH:mm)") },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(due = it) },
+                                label = { Text("Due") },
                                 modifier = Modifier.fillMaxWidth()
                             )
+
                             Spacer(Modifier.height(12.dp))
+
                             OutlinedTextField(
                                 value = t.reminder,
-                                onValueChange = { t.reminder = it },
+                                onValueChange = { extractedTasks[index] = extractedTasks[index].copy(reminder = it) },
                                 label = { Text("Reminder (minutes)") },
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -217,8 +241,16 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                 Button(
                     onClick = {
                         scope.launch {
+
+                            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                                != PackageManager.PERMISSION_GRANTED
+                            ) {
+                                requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+
                             extractedTasks.forEach { t ->
                                 val reminder = t.reminder.toLongOrNull() ?: 10L
+
                                 db.collection("tasks")
                                     .add(
                                         mapOf(
@@ -234,43 +266,55 @@ fun ScanNotesScreen(nav: NavHostController, openDrawer: () -> Unit) {
                                         )
                                     )
                                     .addOnSuccessListener { doc ->
-                                        scheduleMultiReminder(
-                                            context,
-                                            doc.id,
-                                            t.title,
-                                            t.due,
-                                            "gentle"
-                                        )
+
+                                        val channelId = "task_channel"
+                                        val manager = context.getSystemService(NotificationManager::class.java)
+                                        if (manager.getNotificationChannel(channelId) == null) {
+                                            manager.createNotificationChannel(
+                                                NotificationChannel(
+                                                    channelId,
+                                                    "Task Notifications",
+                                                    NotificationManager.IMPORTANCE_HIGH
+                                                )
+                                            )
+                                        }
+
+                                        val notification = NotificationCompat.Builder(context, channelId)
+                                            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                                            .setContentTitle("Task Created")
+                                            .setContentText("New Task: ${t.title}")
+                                            .setPriority(NotificationCompat.PRIORITY_HIGH)
+                                            .setAutoCancel(true)
+                                            .build()
+
+                                        if (ActivityCompat.checkSelfPermission(
+                                                context,
+                                                Manifest.permission.POST_NOTIFICATIONS
+                                            ) == PackageManager.PERMISSION_GRANTED
+                                        ) {
+                                            NotificationManagerCompat.from(context)
+                                                .notify(doc.id.hashCode(), notification)
+                                        }
                                     }
                             }
+
                             nav.popBackStack()
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Save All Tasks")
-                }
+                ) { Text("Save All Tasks") }
             }
         }
     }
 }
 
-data class AiTaskEditable(
-    var title: String,
-    var subject: String,
-    var difficulty: String,
-    var category: String,
-    var due: String,
-    var reminder: String
-)
-
-suspend fun loadBitmapFromUri(context: android.content.Context, uri: Uri): Bitmap? {
+suspend fun loadFullBitmap(context: Context, uri: Uri): Bitmap? {
     return withContext(Dispatchers.IO) {
         try {
-            val stream: InputStream? = context.contentResolver.openInputStream(uri)
-            android.graphics.BitmapFactory.decodeStream(stream)
-        } catch (_: Exception) {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            ImageDecoder.decodeBitmap(source)
+        } catch (e: Exception) {
             null
         }
     }

@@ -9,5 +9,7 @@ data class TaskItem(
     val due: String = "",
     val urgency: String = "gentle",
     val completed: Boolean = false,
-    val completedAt: String = ""
+    val completedAt: String = "",
+    val imageUrl: String = "",
+    val fileUrl: String = ""
 )

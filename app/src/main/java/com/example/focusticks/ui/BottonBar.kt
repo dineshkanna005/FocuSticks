@@ -53,10 +53,10 @@ fun BottomBar(nav: NavHostController, route: String?) {
         )
 
         NavigationBarItem(
-            selected = route == "discussion",
+            selected = route == "groups",
             onClick = {
-                if (route != "discussion") {
-                    nav.navigate("discussion") {
+                if (route != "groups") {
+                    nav.navigate("groups") {
                         popUpTo("dashboard") { inclusive = false }
                         launchSingleTop = true
                         restoreState = true

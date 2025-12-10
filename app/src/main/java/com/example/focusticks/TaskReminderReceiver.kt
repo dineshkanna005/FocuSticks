@@ -23,7 +23,7 @@ class TaskReminderReceiver : BroadcastReceiver() {
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             putExtra("openTaskId", taskId)
-            putExtra("openType", urgency)
+            putExtra("openType", "reminder")
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
 
